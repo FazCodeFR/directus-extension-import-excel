@@ -60,8 +60,8 @@ export const messages = {
   // IA translation for Turkish
   'tr-TR': {
     title: 'Excel İçe Aktar',
-    acceptedFormats: "Only .xlsx or .xls formats are supported.",
-    columnMappingHelp: "Match each column to the target field.",
+    acceptedFormats: "Sadece .xlsx ve .xls formatındakiler desteklenmektedir.",
+    columnMappingHelp: "Her sütun için eşleşecek alanı seçin",
     chooseCollection: '1️⃣ Hedef koleksiyonu seçin',
     uploadExcelFile: '2️⃣ Excel dosyası yükle',
     columnMapping: '3️⃣ Sütun Eşleştirme',
