@@ -89,6 +89,17 @@
 
     <div v-if="successMessage" class="alert success">{{ successMessage }}</div>
     <div v-if="errorMessage" class="alert error">{{ errorMessage }}</div>
+
+    <!-- Affiche les lignes en échec s’il y en a -->
+    <div v-if="failedRows.length > 0" class="alert warning">
+      <strong>Des erreurs ont été détectées sur les lignes suivantes :</strong>
+      <ul>
+        <li v-for="row in failedRows" :key="row.row">
+          Ligne {{ row.row }}{{ row.key ? ` (clé : ${row.key})` : '' }} : {{ row.error }}
+        </li>
+      </ul>
+    </div>
+
   </private-view>
 </template>
 
@@ -114,6 +125,8 @@ const previewData = ref([]);
 const mapping = ref({});
 const successMessage = ref('');
 const errorMessage = ref('');
+const failedRows = ref([]);
+
 const projectLanguage = ref('');
 
 const isLoading = ref(false);
@@ -184,33 +197,33 @@ function getAvailableFields(currentIndex) {
 
 // 📤 Import Excel file
 async function importFile() {
-  if (!selectedFile.value || !selectedCollection.value) return;
-
-  isLoading.value = true;
-  successMessage.value = '';
-  errorMessage.value = '';
-
   try {
     const formData = new FormData();
     formData.append('file', selectedFile.value);
     formData.append('collection', selectedCollection.value);
     formData.append('mapping', JSON.stringify(mapping.value));
-
     if (keyField.value) {
       formData.append('keyField', keyField.value);
     }
+
     const response = await api.post('/import-excel-api', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
 
     successMessage.value = response.data.message || 'Import OK.';
+    errorMessage.value = '';
+    failedRows.value = response.data.failed || [];
+
     console.log('✅ Successful import', response);
   } catch (err) {
-    console.error('❌ Error when importing :', err);
     errorMessage.value = err?.response?.data?.message || 'An error has occurred during import.';
+    successMessage.value = '';
+    failedRows.value = [];
+    console.error('❌ Error when importing :', err);
   } finally {
     isLoading.value = false;
   }
+
 }
 
 

@@ -110,8 +110,7 @@ export default function registerEndpoint(router, { services, getSchema, logger }
           } catch (error) {
             const detail =
               error?.errors?.map((e) => `${e.message} (champ "${e.path}")`).join('; ') ||
-              error?.message ||
-              'Validation failed';
+              error?.message || error ||  'Validation failed';
             logger.error(`Error at row ${row} (key=${keyValue}): ${detail}`);
             errors.push({
               row,
@@ -131,8 +130,7 @@ export default function registerEndpoint(router, { services, getSchema, logger }
           } catch (error) {
             const detail =
               error?.errors?.map((e) => `${e.message} (champ "${e.path}")`).join('; ') ||
-              error?.message ||
-              'Validation failed';
+              error?.message || error || 'Validation failed';
             logger.error(`Error creating item at row ${row}: ${detail}`);
             errors.push({
               row,
@@ -142,6 +140,13 @@ export default function registerEndpoint(router, { services, getSchema, logger }
         }
       }
 
+      logger.info(`Import terminé : ${createdCount} créés, ${updatedCount} mis à jour, ${errors.length} erreurs.`);
+      logger.info({
+        created: createdCount,
+        updated: updatedCount,
+        failed: errors,
+      });
+
       return res.status(errors.length > 0 ? 207 : 200).json({
         message: formatMessage(messages.processedItems, {
           count: results.length + errors.length,
@@ -150,7 +155,6 @@ export default function registerEndpoint(router, { services, getSchema, logger }
         }),
         created: createdCount,
         updated: updatedCount,
-        success: results,
         failed: errors,
       });
 
