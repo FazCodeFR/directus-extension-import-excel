@@ -1,6 +1,5 @@
 import multer from 'multer';
 import * as XLSX from 'xlsx';
-import { createError } from '@directus/errors';
 import { backendMessages } from '../shared/i18nApi.js'; // adapte le chemin
 
 function formatMessage(template, params) {
@@ -61,15 +60,19 @@ export default function registerEndpoint(router, { services, getSchema, logger }
             }
           }
         }
-        // Ajout de l'index ligne pour debug si besoin
-        item.__rowIndex = rowIndex + 2; // +2 car ligne Excel (1-based) + en-tête
+        item.__rowIndex = rowIndex + 2;
         return item;
-      }).filter(item => Object.keys(item).length > 1); // au moins un champ + __rowIndex
+      }).filter(item => Object.keys(item).length > 1); // exclude empty rows
 
       if (items.length === 0) {
         logger.warn('No valid items found in Excel after mapping');
         return res.status(400).json({ message: messages.noValidItems });
       }
+
+      const results = [];
+      const errors = [];
+      let createdCount = 0;
+      let updatedCount = 0;
 
       if (keyField) {
         const missingKey = items.find(item => !(keyField in item));
@@ -87,74 +90,82 @@ export default function registerEndpoint(router, { services, getSchema, logger }
         });
         const existingMap = new Map(existingItems.map(item => [item[keyField], item]));
 
-        const results = [];
-        let createdCount = 0;
-        let updatedCount = 0;
-
         for (const item of items) {
+          const row = item.__rowIndex;
           const keyValue = item[keyField];
-          const existing = existingMap.get(keyValue);
+
           try {
-            if (existing) {
+            if (existingMap.has(keyValue)) {
+              const existing = existingMap.get(keyValue);
               await itemsService.updateOne(existing.id, item);
-              results.push({ id: existing.id, action: 'updated', row: item.__rowIndex });
+              results.push({ id: existing.id, action: 'updated', row });
               updatedCount++;
-              logger.info(`Updated item id=${existing.id} (key=${keyValue}) at row ${item.__rowIndex}`);
+              logger.info(`Updated item id=${existing.id} (key=${keyValue}) at row ${row}`);
             } else {
               const newId = await itemsService.createOne(item);
-              results.push({ id: newId, action: 'created', row: item.__rowIndex });
+              results.push({ id: newId, action: 'created', row });
               createdCount++;
-              logger.info(`Created new item id=${newId} (key=${keyValue}) at row ${item.__rowIndex}`);
+              logger.info(`Created new item id=${newId} (key=${keyValue}) at row ${row}`);
             }
           } catch (error) {
-            logger.error(`Error processing item at row ${item.__rowIndex} (key=${keyValue}): ${error.message || error}`);
-            // Option : collecter ces erreurs et les renvoyer en réponse (ou simplement ignorer / arrêter)
-            return res.status(400).json({
-              message: `Erreur sur la ligne ${item.__rowIndex} (clé ${keyValue}): ${error.message || 'Validation failed'}`,
+            const detail =
+              error?.errors?.map((e) => `${e.message} (champ "${e.path}")`).join('; ') ||
+              error?.message ||
+              'Validation failed';
+            logger.error(`Error at row ${row} (key=${keyValue}): ${detail}`);
+            errors.push({
+              row,
+              key: keyValue,
+              error: detail,
             });
           }
         }
-
-        return res.json({
-          message: formatMessage(messages.processedItems, {
-            count: results.length,
-            created: createdCount,
-            updated: updatedCount,
-          }),
-          data: results,
-        });
       } else {
-        // Pas de clé, on crée tous les items
-        const results = [];
         for (const item of items) {
+          const row = item.__rowIndex;
           try {
             const newId = await itemsService.createOne(item);
-            results.push({ id: newId, action: 'created', row: item.__rowIndex });
-            logger.info(`Created new item id=${newId} at row ${item.__rowIndex}`);
+            results.push({ id: newId, action: 'created', row });
+            createdCount++;
+            logger.info(`Created new item id=${newId} at row ${row}`);
           } catch (error) {
-            logger.error(`Error creating item at row ${item.__rowIndex}: ${error.message || error}`);
-            return res.status(400).json({
-              message: `Erreur sur la ligne ${item.__rowIndex}: ${error.message || 'Validation failed'}`,
+            const detail =
+              error?.errors?.map((e) => `${e.message} (champ "${e.path}")`).join('; ') ||
+              error?.message ||
+              'Validation failed';
+            logger.error(`Error creating item at row ${row}: ${detail}`);
+            errors.push({
+              row,
+              error: detail,
             });
           }
         }
-
-        return res.json({
-          message: formatMessage(messages.itemsCreated, { count: results.length }),
-          data: results,
-        });
       }
+
+      return res.status(errors.length > 0 ? 207 : 200).json({
+        message: formatMessage(messages.processedItems, {
+          count: results.length + errors.length,
+          created: createdCount,
+          updated: updatedCount,
+        }),
+        created: createdCount,
+        updated: updatedCount,
+        success: results,
+        failed: errors,
+      });
+
     } catch (error) {
       const lang = (req.headers['accept-language'] || 'en-US').split(',')[0];
       const messages = backendMessages[lang] || backendMessages['en-US'];
-      logger.error(`Unexpected error: ${error.message || error}`);
-      if (error.statusCode) {
-        res.status(error.statusCode).json({ message: error.message || error });
-      } else {
-        res.status(500).json({
-          message: formatMessage(messages.internalError, { error: error.message || error }),
-        });
-      }
+      const detail =
+        error?.errors?.map((e) => `${e.message} (champ "${e.path}")`).join('; ') ||
+        error?.message || error || 'Internal error';
+
+      logger.error(`Unexpected error: ${detail}`);
+
+      return res.status(error.statusCode || 500).json({
+        message: formatMessage(messages.internalError, { error: detail }),
+      });
     }
   });
 }
