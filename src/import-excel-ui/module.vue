@@ -322,4 +322,11 @@ onMounted(async () => {
   color: var(--theme--danger-foreground, #c00);
   border: 1px solid var(--theme--danger-border, #ef9a9a);
 }
+
+.alert.warning {
+  background: var(--theme--warning-background, #fffbe6);
+  color: var(--theme--warning-foreground, #8a6d3b);
+  border: 1px solid var(--theme--warning-border, #ffecb5);
+}
+
 </style>
