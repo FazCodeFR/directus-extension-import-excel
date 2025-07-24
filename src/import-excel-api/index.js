@@ -55,8 +55,9 @@ export default function registerEndpoint(router, { services, getSchema }) {
         for (const [colIndex, fieldName] of Object.entries(mapping)) {
           if (fieldName) {
             const value = row[colIndex];
-            if (value !== undefined && value !== null && value !== '') {
-              item[fieldName] = value;
+            const trimmedValue = typeof value === 'string' ? value.trim() : value;
+            if (trimmedValue !== undefined && trimmedValue !== null && trimmedValue !== '') {
+              item[fieldName] = trimmedValue;
             }
           }
         }
