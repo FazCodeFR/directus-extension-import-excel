@@ -8,7 +8,7 @@ export const backendMessages = {
     noValidItems: 'No valid items to import. Check your mapping.',
     missingKeyForUpsert: 'An item is missing the required key field "{keyField}" for upsert.',
     internalError: 'Internal error during Excel import: {error}',
-    processedItems: '{count} items processed: {created} created, {updated} updated.',
+    processedItems: '{count} items processed: {created} created, {updated} updated, {failed} errors.',
     itemsCreated: '{count} items successfully created.',
   },
   // Original French translations
@@ -20,7 +20,7 @@ export const backendMessages = {
     noValidItems: 'Aucun élément valide à importer. Vérifiez le mapping.',
     missingKeyForUpsert: 'Un élément ne contient pas la clé "{keyField}" requise pour l’upsert.',
     internalError: 'Erreur interne lors de l’import Excel : {error}',
-    processedItems: '{count} éléments traités : {created} créés, {updated} mis à jour.',
+    processedItems: '{count} éléments traités : {created} créés, {updated} mis à jour, {failed} erreurs.',
     itemsCreated: '{count} éléments créés avec succès.',
   },
   // // IA translation for Turkish
@@ -32,7 +32,7 @@ export const backendMessages = {
     noValidItems: 'İçe aktarılacak geçerli öğe yok. Eşleştirmeyi kontrol edin.',
     missingKeyForUpsert: 'Bir öğede upsert için gereken "{keyField}" anahtar alanı eksik.',
     internalError: 'Excel içe aktarımı sırasında dahili hata: {error}',
-    processedItems: '{count} öğe işlendi: {created} oluşturuldu, {updated} güncellendi.',
+    processedItems: '{count} öğe işlendi: {created} oluşturuldu, {updated} güncellendi, {failed} hatalar.',
     itemsCreated: '{count} öğe başarıyla oluşturuldu.',
   }
 };
