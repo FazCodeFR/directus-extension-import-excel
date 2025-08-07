@@ -33,7 +33,7 @@
 				"source": "src/import-excel-api/index.js"
 			}
 		],
-    	"host": ">=10.10.10"
+		"host": ">=10.10.10"
 	},
 	"scripts": {
 		"start": "vite",
@@ -48,7 +48,7 @@
 		"@directus/sdk": "^20.0.1",
 		"multer": "^2.0.2",
 		"vue-i18n": "^11.1.11",
-		"xlsx": "^0.18.5"
+		"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
 	},
 	"devDependencies": {
 		"@directus/extensions-sdk": "15.0.0",
@@ -61,5 +61,8 @@
 	},
 	"bugs": {
 		"url": "https://github.com/FazCodeFR/directus-extension-import-excel/issues"
+	},
+	"overrides": {
+	"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
 	}
 }
