@@ -27,6 +27,8 @@ export const messages = {
     selectCollectionPlaceholder: 'Select a collection',
     selectKeyFieldPlaceholder: 'Select a key field',
     selectFieldPlaceholder: 'Field',
+    errorsDetected: 'Errors were detected on the following rows:',
+    copyErrors: 'Copy all errors',
   },
   // Original French translations
   'fr-FR': {
@@ -56,6 +58,8 @@ export const messages = {
     selectCollectionPlaceholder: 'Sélectionnez une collection',
     selectKeyFieldPlaceholder: 'Sélectionnez un champ clé',
     selectFieldPlaceholder: 'Champ',
+    errorsDetected: 'Des erreurs ont été détectées sur les lignes suivantes :',
+    copyErrors: 'Copier toutes les erreurs',
   },
   // IA translation for Turkish
   'tr-TR': {
@@ -81,6 +85,8 @@ export const messages = {
     selectCollectionPlaceholder: 'Bir koleksiyon seçin',
     selectKeyFieldPlaceholder: 'Anahtar alanı seçin',
     selectFieldPlaceholder: 'Alan',
+    errorsDetected: 'Aşağıdaki satırlarda hatalar tespit edildi:',
+    copyErrors: 'Tüm hataları kopyala',
   }
 };
 

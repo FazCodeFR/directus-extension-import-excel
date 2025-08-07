@@ -73,10 +73,9 @@ export default function registerEndpoint(router, { services, getSchema, logger }
           for (const [colIndex, fieldName] of Object.entries(mapping)) {
             if (fieldName) {
               const value = row[colIndex];
-              const trimmedValue =
-                typeof value === "string" ? value.trim() : value;
-              if (trimmedValue !== undefined && trimmedValue !== null && trimmedValue !== "") {
-                item[fieldName] = trimmedValue;
+              const stringValue = value !== undefined && value !== null ? String(value).trim() : "";
+              if (stringValue !== "") {
+                item[fieldName] = stringValue;
               }
             }
           }
@@ -147,13 +146,15 @@ export default function registerEndpoint(router, { services, getSchema, logger }
       );
       logger.info({ created: createdCount, updated: updatedCount, failed: errors });
 
+      const parts = [];
+      if (createdCount > 0) parts.push(`${createdCount} ${messages.created}`);
+      if (updatedCount > 0) parts.push(`${updatedCount} ${messages.updated}`);
+      if (errors.length > 0)  parts.push(`${errors.length} ${messages.failed}`);
+
+      const summary = parts.length > 0 ? parts.join(', ') : messages.none;
+
       return res.status(errors.length > 0 ? 207 : 200).json({
-        message: formatMessage(messages.processedItems, {
-          count: results.length + errors.length,
-          created: createdCount,
-          updated: updatedCount,
-          failed: errors.length,
-        }),
+        message: `${results.length + errors.length} ${messages.processedItemsPrefix} ${summary}.`,
         created: createdCount,
         updated: updatedCount,
         failed: errors,

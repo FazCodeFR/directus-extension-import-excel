@@ -87,12 +87,24 @@
 
     </div>
 
-    <div v-if="successMessage" class="alert success">{{ successMessage }}</div>
-    <div v-if="errorMessage" class="alert error">{{ errorMessage }}</div>
+    <div
+      v-if="successMessage || errorMessage"
+      :class="['alert', alertType]"
+    >
+      {{ successMessage || errorMessage }}
+    </div>
 
-    <!-- Affiche les lignes en échec s’il y en a -->
-    <div v-if="failedRows.length > 0" class="alert warning">
-      <strong>Des erreurs ont été détectées sur les lignes suivantes :</strong>
+    <!-- ℹ️ Détail en bas : erreurs ligne par ligne -->
+    <div v-if="failedRows.length > 0" class="alert info">
+      <strong>{{ t('errorsDetected') }}</strong>
+      <VButton
+        @click="copyErrors"
+        :xSmall="true"
+        :secondary="true"
+        style="margin-left: 10px;"
+      >
+        {{ t('copyErrors') }}
+      </VButton>
       <ul>
         <li v-for="row in failedRows" :key="row.row">
           Ligne {{ row.row }}{{ row.key ? ` (clé : ${row.key})` : '' }} : {{ row.error }}
@@ -123,6 +135,7 @@ const contactFields = ref([]);
 const selectedFile = ref(null);
 const previewData = ref([]);
 const mapping = ref({});
+const importResult = ref(null); 
 const successMessage = ref('');
 const errorMessage = ref('');
 const failedRows = ref([]);
@@ -198,6 +211,7 @@ function getAvailableFields(currentIndex) {
 // 📤 Import Excel file
 async function importFile() {
   try {
+    isLoading.value = true; 
     const formData = new FormData();
     formData.append('file', selectedFile.value);
     formData.append('collection', selectedCollection.value);
@@ -205,11 +219,11 @@ async function importFile() {
     if (keyField.value) {
       formData.append('keyField', keyField.value);
     }
-
     const response = await api.post('/import-excel-api', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
 
+    importResult.value = response.data;
     successMessage.value = response.data.message || 'Import OK.';
     errorMessage.value = '';
     failedRows.value = response.data.failed || [];
@@ -219,12 +233,14 @@ async function importFile() {
     errorMessage.value = err?.response?.data?.message || 'An error has occurred during import.';
     successMessage.value = '';
     failedRows.value = [];
+    importResult.value = null;
+
     console.error('❌ Error when importing :', err);
   } finally {
     isLoading.value = false;
   }
-
 }
+
 
 
 // 📁 Manage file upload
@@ -247,6 +263,34 @@ function handleFileUpload(e) {
   };
   reader.readAsArrayBuffer(file);
 }
+
+// 📋 Copy errors to clipboard
+function copyErrors() {
+  const errorText = failedRows.value.map(row => {
+    return `Ligne ${row.row}${row.key ? ` (clé : ${row.key})` : ''} : ${row.error}`;
+  }).join('\n');
+
+  navigator.clipboard.writeText(errorText).then(() => {
+    alert('Les erreurs ont été copiées dans le presse-papiers.');
+  }).catch(() => {
+    alert('Impossible de copier les erreurs dans le presse-papiers.');
+  });
+}
+
+const alertType = computed(() => {
+  if (!importResult.value) return null;
+
+  const hasFailed = (importResult.value.failed || []).length > 0;
+  const hasCreatedOrUpdated =
+    (importResult.value.created || 0) > 0 || (importResult.value.updated || 0) > 0;
+
+  if (hasFailed && !hasCreatedOrUpdated) return 'error';
+  if (hasFailed && hasCreatedOrUpdated) return 'warning';
+  if (!hasFailed && hasCreatedOrUpdated) return 'success';
+
+  return 'info';
+});
+
 
 // 🔁 Initialisation
 onMounted(async () => {
