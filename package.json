@@ -45,14 +45,14 @@
 	},
 	"dependencies": {
 		"@directus/errors": "^2.0.2",
-		"@directus/sdk": "^20.0.0",
-		"multer": "^2.0.1",
-		"vue-i18n": "^11.1.9",
+		"@directus/sdk": "^20.0.1",
+		"multer": "^2.0.2",
+		"vue-i18n": "^11.1.11",
 		"xlsx": "^0.18.5"
 	},
 	"devDependencies": {
 		"@directus/extensions-sdk": "15.0.0",
-		"vue": "^3.5.17"
+		"vue": "^3.5.18"
 	},
 	"main": "src/index.js",
 	"repository": {
