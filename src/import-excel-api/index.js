@@ -127,7 +127,7 @@ export default function registerEndpoint(router, { services, getSchema, logger }
         try {
           // On recherche d'abord des doublons potentiels sur "nom_prenom"
           const existing = await itemsService.readByQuery({
-            filter: { nom_prenom: { _eq: item.nom_prenom } },
+            filter: { nom_prenom: { _ilike: item.nom_prenom } },
             limit: -1,
           });
 
