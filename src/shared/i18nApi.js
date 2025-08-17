@@ -12,6 +12,7 @@ export const backendMessages = {
     created: 'created',
     updated: 'updated',
     failed: 'errors',
+    ignored: 'ignored',
     none: 'no changes'
   },
   // Original French translations
@@ -27,6 +28,7 @@ export const backendMessages = {
     created: 'créés',
     updated: 'mis à jour',
     failed: 'erreurs',
+    ignored: 'ignorés',
     none: 'aucun changement'
   },
   // // IA translation for Turkish
@@ -42,6 +44,7 @@ export const backendMessages = {
     created: 'oluşturuldu',
     updated: 'güncellendi',
     failed: 'hatalar',
+    ignored: 'yoksayıldı',
     none: 'değişiklik yok'
   }
 };

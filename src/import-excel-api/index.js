@@ -2,6 +2,30 @@ import multer from "multer";
 import * as XLSX from "xlsx";
 import { backendMessages } from "../shared/i18nApi.js"; // adapte le chemin
 
+
+
+// 🔎 Fonction utilitaire : check concordance
+function getConcordance(existingItem, newItem) {
+  const nomPrenomMatch = existingItem.nom_prenom?.trim().toLowerCase() === newItem.nom_prenom?.trim().toLowerCase();
+  const adresseMatch = existingItem.adresse?.trim().toLowerCase() === newItem.adresse?.trim().toLowerCase();
+  const adresse2Match = existingItem.adresse_2?.trim().toLowerCase() === newItem.adresse_2?.trim().toLowerCase();
+  const codePostalMatch = existingItem.code_postal?.trim() === newItem.code_postal?.trim();
+
+  // ✅ Concordance stricte (IGNORER)
+  if ((nomPrenomMatch && adresseMatch) || (nomPrenomMatch && adresse2Match && codePostalMatch)) {
+    return "STRICT";
+  }
+
+  // ⚠️ Concordance partielle (à vérifier)
+  if ((nomPrenomMatch && adresseMatch) || (nomPrenomMatch && adresse2Match) || (nomPrenomMatch && codePostalMatch)) {
+    return "PARTIAL";
+  }
+
+  // ❌ Aucune concordance
+  return "NONE";
+}
+
+
 function formatMessage(template, params) {
   return template.replace(/\{(\w+)\}/g, (_, key) => params[key] || "");
 }
@@ -73,7 +97,10 @@ export default function registerEndpoint(router, { services, getSchema, logger }
           for (const [colIndex, fieldName] of Object.entries(mapping)) {
             if (fieldName) {
               const value = row[colIndex];
-              const stringValue = value !== undefined && value !== null ? String(value).trim() : "";
+              const stringValue =
+                value !== undefined && value !== null
+                  ? String(value).trim()
+                  : "";
               if (stringValue !== "") {
                 item[fieldName] = stringValue;
               }
@@ -91,72 +118,94 @@ export default function registerEndpoint(router, { services, getSchema, logger }
       const errors = [];
       let createdCount = 0;
       let updatedCount = 0;
+      let ignoredCount = 0;
 
-      if (keyField) {
-        const missingKey = items.find((item) => !(keyField in item));
-        if (missingKey)
-          return res.status(400).json({
-            message: formatMessage(messages.missingKeyForUpsert, { keyField }),
+      // 🛠️ Nouvelle logique d'import (sans clé spécifique)
+      for (const item of items) {
+        const row = item.__rowIndex;
+
+        try {
+          // On recherche d'abord des doublons potentiels sur "nom_prenom"
+          const existing = await itemsService.readByQuery({
+            filter: { nom_prenom: { _eq: item.nom_prenom } },
+            limit: -1,
           });
 
-        const keyValues = [...new Set(items.map((item) => item[keyField]))];
-        const existingItems = await itemsService.readByQuery({
-          filter: { [keyField]: { _in: keyValues } },
-          limit: keyValues.length,
-        });
+          let concordance = "NONE";
+          let matchedItem = null;
 
-        const existingMap = new Map(
-          existingItems.map((item) => [item[keyField], item])
-        );
-
-        for (const item of items) {
-          const row = item.__rowIndex;
-          const keyValue = item[keyField];
-
-          try {
-            if (existingMap.has(keyValue)) {
-              const existing = existingMap.get(keyValue);
-              await itemsService.updateOne(existing.id, item);
-              results.push({ id: existing.id, action: "updated", row });
-              updatedCount++;
-            } else {
-              const newId = await itemsService.createOne(item);
-              results.push({ id: newId, action: "created", row });
-              createdCount++;
+          if (existing.length > 0) {
+            for (const ex of existing) {
+              concordance = getConcordance(ex, item);
+              if (concordance !== "NONE") {
+                matchedItem = ex;
+                break;
+              }
             }
-          } catch (error) {
-            handleItemError(row, error, logger, errors, item);
           }
-        }
-      } else {
-        for (const item of items) {
-          const row = item.__rowIndex;
-          try {
+
+          if (concordance === "STRICT") {
+            // 🚫 Pas d'import
+            results.push({ action: "ignored", row, id: matchedItem.id });
+            ignoredCount++;
+            continue;
+          }
+
+          if (concordance === "PARTIAL") {
+            // ⚠️ Update l'existant avec statut = Fiche à vérifier
+            const updated = {
+              ...matchedItem,
+              ...item,
+              statut: "Fiche à vérifier",
+            };
+            await itemsService.updateOne(matchedItem.id, updated);
+            results.push({
+              id: matchedItem.id,
+              action: "updated",
+              row,
+            });
+            updatedCount++;
+            continue;
+          }
+
+          if (concordance === "NONE") {
+            // ✅ Nouvelle entrée
+            item.statut = "Fiche créée";
             const newId = await itemsService.createOne(item);
             results.push({ id: newId, action: "created", row });
             createdCount++;
-          } catch (error) {
-            handleItemError(row, error, logger, errors, item);
+            continue;
           }
+        } catch (error) {
+          handleItemError(row, error, logger, errors, item);
         }
       }
 
       logger.info(
-        `Import terminé : ${createdCount} créés, ${updatedCount} mis à jour, ${errors.length} erreurs.`
+        `Import terminé : ${createdCount} créés, ${updatedCount} mis à jour, ${ignoredCount} ignorés, ${errors.length} erreurs.`
       );
-      logger.info({ created: createdCount, updated: updatedCount, failed: errors });
+      logger.info({
+        created: createdCount,
+        updated: updatedCount,
+        ignored: ignoredCount,
+        failed: errors,
+      });
 
       const parts = [];
       if (createdCount > 0) parts.push(`${createdCount} ${messages.created}`);
       if (updatedCount > 0) parts.push(`${updatedCount} ${messages.updated}`);
-      if (errors.length > 0)  parts.push(`${errors.length} ${messages.failed}`);
+      if (ignoredCount > 0) parts.push(`${ignoredCount} ${messages.ignored}`);
+      if (errors.length > 0) parts.push(`${errors.length} ${messages.failed}`);
 
-      const summary = parts.length > 0 ? parts.join(', ') : messages.none;
+      const summary = parts.length > 0 ? parts.join(", ") : messages.none;
 
       return res.status(errors.length > 0 ? 207 : 200).json({
-        message: `${results.length + errors.length} ${messages.processedItemsPrefix} ${summary}.`,
+        message: `${results.length + errors.length} ${
+          messages.processedItemsPrefix
+        } ${summary}.`,
         created: createdCount,
         updated: updatedCount,
+        ignored: ignoredCount,
         failed: errors,
       });
     } catch (error) {

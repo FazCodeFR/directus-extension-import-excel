@@ -58,20 +58,26 @@
       </div>
     </div>
 
-    <div v-if="previewData.length && contactFields.length" class="step">
-      <h2>{{ t('keyFieldTitle') }}</h2>
-      <VSelect
-        v-model="keyField"
-        :items="contactFields"
-        item-text="label"
-        item-value="value"
-        :label="t('keyFieldLabel')"
-        :placeholder="t('selectKeyFieldPlaceholder')"
-        clearable
-      />
-      <p class="info-text">{{ t('keyFieldHelp1') }}</p>
-      <p class="info-text">{{ t('keyFieldHelp2') }}</p>
+        <!-- 📝 Règles de concordance -->
+    <div v-if="selectedFile" class="step">
+      <h2>{{ 'Règles de concordance : ' }}</h2>
+      <ul class="info-text">
+        <li>
+          <strong>PAS D’IMPORT (ignoré)</strong> : si concordance stricte entre 
+          <em>« Nom Prénom » + « Adresse »</em> ou <em>« Adresse 2 » + « Code postal »</em>.
+        </li>
+        <li>
+          <strong>IMPORT AVEC STATUT À VÉRIFIER</strong> : en cas de concordance partielle, par exemple 
+          <em>« Nom Prénom » + « Adresse »</em> ou <em>« Adresse 2 »</em> ou 
+          <em>« Nom Prénom » + « Code postal »</em>.
+        </li>
+        <li>
+          <strong>IMPORT AVEC STATUT FICHE CRÉÉE</strong> : si aucune concordance trouvée 
+          (ex. « Nom Prénom » n’existe pas).
+        </li>
+      </ul>
     </div>
+    <br><br>
 
     <div v-if="selectedFile" class="step">
       <h2>{{ t('importTitle') }}</h2>
@@ -144,8 +150,6 @@ const projectLanguage = ref('');
 
 const isLoading = ref(false);
 
-const keyField = ref('');
-
 // 🔄 Retrieves the project language
 async function fetchProjectInfo() {
   try {
@@ -216,9 +220,6 @@ async function importFile() {
     formData.append('file', selectedFile.value);
     formData.append('collection', selectedCollection.value);
     formData.append('mapping', JSON.stringify(mapping.value));
-    if (keyField.value) {
-      formData.append('keyField', keyField.value);
-    }
     const response = await api.post('/import-excel-api', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
