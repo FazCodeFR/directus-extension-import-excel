@@ -4,7 +4,7 @@ export const messages = {
     title: 'Import Excel',
     chooseCollection: '1️⃣ Choose target collection',
     uploadExcelFile: '2️⃣ Upload an Excel file',
-    acceptedFormats: 'Accepted formats: .xlsx, .xls',
+    acceptedFormats: 'Accepted formats: .xlsx',
     columnMapping: '3️⃣ Column Mapping',
     columnMappingHelp:
       'Match each column from the file to a field in the database. A preview of the first rows is shown.',
@@ -35,7 +35,7 @@ export const messages = {
     title: 'Importer un fichier Excel',
     chooseCollection: '1️⃣ Choisissez la collection cible',
     uploadExcelFile: '2️⃣ Importez un fichier Excel',
-    acceptedFormats: 'Formats acceptés : .xlsx, .xls',
+    acceptedFormats: 'Formats acceptés : .xlsx',
     columnMapping: '3️⃣ Mappage des colonnes',
     columnMappingHelp:
       'Associez chaque colonne du fichier à un champ dans la base de données. Un aperçu des premières lignes est affiché.',

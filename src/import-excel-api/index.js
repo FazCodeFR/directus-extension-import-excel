@@ -5,8 +5,6 @@ import { backendMessages } from "../shared/i18nApi.js"; // adapte le chemin
 
 
 // 🔎 Fonction utilitaire : check concordance
-// 🔎 Fonction utilitaire : check concordance
-// 🔎 Fonction utilitaire : check concordance
 function getConcordance(existingItem, newItem) {
   const nomPrenomMatch = existingItem.nom_prenom?.trim().toLowerCase() === newItem.nom_prenom?.trim().toLowerCase();
 
@@ -173,6 +171,7 @@ export default function registerEndpoint(router, { services, getSchema, logger }
               ...item,
               statut: "Fiche à vérifier",
             };
+            console.log('🚀 ~ registerEndpoint ~ item:', item);
             await itemsService.updateOne(matchedItem.id, updated);
             results.push({
               id: matchedItem.id,
