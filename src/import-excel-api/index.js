@@ -6,17 +6,18 @@ import { backendMessages } from "../shared/i18nApi.js"; // adapte le chemin
 
 // 🔎 Fonction utilitaire : check concordance
 // 🔎 Fonction utilitaire : check concordance
+// 🔎 Fonction utilitaire : check concordance
 function getConcordance(existingItem, newItem) {
   const nomPrenomMatch = existingItem.nom_prenom?.trim().toLowerCase() === newItem.nom_prenom?.trim().toLowerCase();
 
-  const existingAdresses = [
-    existingItem.adresse?.trim().toLowerCase(),
-    existingItem.adresse_2?.trim().toLowerCase()
-  ];
-  const newAdresses = [
-    newItem.adresse?.trim().toLowerCase(),
-    newItem.adresse_2?.trim().toLowerCase()
-  ];
+  // On ne garde que les adresses définies et non vides
+  const existingAdresses = [existingItem.adresse, existingItem.adresse_2]
+    .filter(a => a?.trim())
+    .map(a => a.trim().toLowerCase());
+
+  const newAdresses = [newItem.adresse, newItem.adresse_2]
+    .filter(a => a?.trim())
+    .map(a => a.trim().toLowerCase());
 
   // Vérifie si au moins une adresse correspond
   const adresseMatch = existingAdresses.some(ea => newAdresses.includes(ea));
@@ -24,13 +25,11 @@ function getConcordance(existingItem, newItem) {
   const codePostalMatch = existingItem.code_postal?.trim() === newItem.code_postal?.trim();
 
   // ✅ Concordance stricte → PAS D’IMPORT
-  // nom+prenom + (adresse correspondante) + code postal correspond
   if (nomPrenomMatch && adresseMatch && codePostalMatch) {
     return "STRICT";
   }
 
   // ⚠️ Concordance partielle → IMPORT AVEC STATUT À VÉRIFIER
-  // nom+prenom + (au moins une adresse correspondante) ou nom+prenom + code postal
   if ((nomPrenomMatch && adresseMatch) || (nomPrenomMatch && codePostalMatch)) {
     return "PARTIAL";
   }
@@ -38,6 +37,7 @@ function getConcordance(existingItem, newItem) {
   // ❌ Nouvelle entrée → IMPORT AVEC STATUT FICHE CRÉÉE
   return "NONE";
 }
+
 
 
 
