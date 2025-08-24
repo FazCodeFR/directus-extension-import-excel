@@ -77,6 +77,15 @@
         </li>
       </ul>
     </div>
+
+    <div  class="step">
+      <h2>{{ 'Règles de fichier : ' }}</h2>
+      <ul class="info-text">
+        <li> Pas de ligne d’en-tête (header) dans le fichier Excel. </li>
+        <li> Format .xlsx uniquement. </li>
+        <li> Bien corriger le fichier avant import, en vérifiant les données et les formats. </li>
+      </ul>
+    </div>
     <br><br>
 
     <div v-if="selectedFile" class="step">
