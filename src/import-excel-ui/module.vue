@@ -59,7 +59,7 @@
     </div>
 
         <!-- 📝 Règles de concordance -->
-    <div v-if="selectedFile" class="step">
+    <div  class="step">
       <h2>{{ 'Règles de concordance : ' }}</h2>
       <ul class="info-text">
         <li>

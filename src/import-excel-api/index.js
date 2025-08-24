@@ -166,13 +166,13 @@ export default function registerEndpoint(router, { services, getSchema, logger }
 
           if (concordance === "PARTIAL") {
             // ⚠️ Update l'existant avec statut = Fiche à vérifier
-            const updated = {
-              ...matchedItem,
-              ...item,
-              statut: "Fiche à vérifier",
-            };
-            console.log('🚀 ~ registerEndpoint ~ item:', item);
-            await itemsService.updateOne(matchedItem.id, updated);
+            if (concordance === "PARTIAL") {
+              const updated = {
+                ...item,
+                statut: "Fiche à vérifier",
+              };
+              await itemsService.updateOne(matchedItem.id, updated, { emitEvents: true });
+            }
             results.push({
               id: matchedItem.id,
               action: "updated",
