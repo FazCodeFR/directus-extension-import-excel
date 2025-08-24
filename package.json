@@ -51,7 +51,7 @@
 		"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
 	},
 	"devDependencies": {
-		"@directus/extensions-sdk": "15.0.0",
+		"@directus/extensions-sdk": "16.0.0",
 		"vue": "^3.5.18"
 	},
 	"main": "src/index.js",
