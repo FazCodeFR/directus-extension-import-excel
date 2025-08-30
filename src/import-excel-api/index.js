@@ -171,6 +171,7 @@ export default function registerEndpoint(router, { services, getSchema, logger }
                 ...item,
                 statut: "Fiche à vérifier",
               };
+              delete updated.__rowIndex;
               await itemsService.updateOne(matchedItem.id, updated, { emitEvents: true });
             }
             results.push({
@@ -185,6 +186,7 @@ export default function registerEndpoint(router, { services, getSchema, logger }
           if (concordance === "NONE") {
             // ✅ Nouvelle entrée
             item.statut = "Fiche créée";
+            delete item.__rowIndex;
             const newId = await itemsService.createOne(item);
             results.push({ id: newId, action: "created", row });
             createdCount++;

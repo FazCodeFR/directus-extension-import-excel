@@ -58,27 +58,36 @@
       </div>
     </div>
 
-        <!-- 📝 Règles de concordance -->
-    <div  class="step">
-      <h2>{{ 'Règles de concordance : ' }}</h2>
+    <!-- 📝 Règles de concordance -->
+    <div class="step">
+      <h2>Les règles sont les suivantes :</h2>
       <ul class="info-text">
         <li>
-          <strong>PAS D’IMPORT (ignoré)</strong> : si concordance stricte entre 
-          <em>« Nom Prénom » + « Adresse »</em> ou <em>« Adresse 2 » + « Code postal »</em>.
+          <strong>Concordance stricte → Aucun import</strong>
+          <ul>
+            <li>Le Nom Prénom est identique</li>
+            <li>Au moins une adresse (adresse 1 ou 2) correspond</li>
+            <li>Le Code postal est identique</li>
+          </ul>
         </li>
         <li>
-          <strong>IMPORT AVEC STATUT À VÉRIFIER</strong> : en cas de concordance partielle, par exemple 
-          <em>« Nom Prénom » + « Adresse »</em> ou <em>« Adresse 2 »</em> ou 
-          <em>« Nom Prénom » + « Code postal »</em>.
+          <strong>Concordance partielle → Import avec statut "À vérifier"</strong>
+          <ul>
+            <li>Le Nom Prénom est identique</li>
+            <li>Et (soit une adresse correspond, soit le code postal correspond)</li>
+          </ul>
         </li>
         <li>
-          <strong>IMPORT AVEC STATUT FICHE CRÉÉE</strong> : si aucune concordance trouvée 
-          (ex. « Nom Prénom » n’existe pas).
+          <strong>Aucune concordance → Import avec statut "Fiche créée"</strong>
+          <ul>
+            <li>Aucun des cas précédents n'est rempli (nouvelle entrée détectée)</li>
+          </ul>
         </li>
       </ul>
     </div>
 
-    <div  class="step">
+
+    <div class="step">
       <h2>{{ 'Règles de fichier : ' }}</h2>
       <ul class="info-text">
         <li> Pas de ligne d’en-tête (header) dans le fichier Excel. </li>
