@@ -164,34 +164,16 @@ export default function registerEndpoint(router, { services, getSchema, logger }
             continue;
           }
 
-          if (concordance === "PARTIAL") {
-            // ⚠️ Update l'existant avec statut = Fiche à vérifier
-            if (concordance === "PARTIAL") {
-              const updated = {
-                ...item,
-                statut: "Fiche à vérifier",
-              };
-              delete updated.__rowIndex;
-              await itemsService.updateOne(matchedItem.id, updated, { emitEvents: true });
-            }
-            results.push({
-              id: matchedItem.id,
-              action: "updated",
-              row,
-            });
-            updatedCount++;
-            continue;
-          }
-
-          if (concordance === "NONE") {
+          if (concordance === "PARTIAL" || concordance === "NONE") {
             // ✅ Nouvelle entrée
-            item.statut = "Fiche créée";
+            item.statut = concordance === "PARTIAL" ? "Fiche à vérifier" : "Fiche créée";
             delete item.__rowIndex;
             const newId = await itemsService.createOne(item);
             results.push({ id: newId, action: "created", row });
             createdCount++;
             continue;
           }
+
         } catch (error) {
           handleItemError(row, error, logger, errors, item);
         }
