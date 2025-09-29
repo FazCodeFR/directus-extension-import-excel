@@ -139,11 +139,12 @@ export default function registerEndpoint(router, { services, getSchema, logger }
       const allExisting = await itemsService.readByQuery({ limit: -1 });
 
 
+      // 🛠️ Nouvelle logique d'import (avec priorité STRICT)
       for (const item of items) {
         const row = item.__rowIndex;
 
         try {
-
+          // Filtrer les candidats sur nom_prenom
           const candidatesExisting = allExisting.filter(
             (ex) =>
               ex.nom_prenom?.trim().toLowerCase() ===
@@ -154,24 +155,38 @@ export default function registerEndpoint(router, { services, getSchema, logger }
           let matchedItem = null;
 
           if (candidatesExisting.length > 0) {
+            // ✅ 1️⃣ Chercher d'abord une concordance STRICT (prioritaire)
             for (const ex of candidatesExisting) {
-              concordance = getConcordance(ex, item);
-              if (concordance !== "NONE") {
+              const check = getConcordance(ex, item);
+              if (check === "STRICT") {
+                concordance = "STRICT";
                 matchedItem = ex;
-                break;
+                break; // Match exact trouvé, on arrête
+              }
+            }
+
+            // ✅ 2️⃣ Si pas de STRICT, chercher une concordance PARTIAL
+            if (concordance === "NONE") {
+              for (const ex of candidatesExisting) {
+                const check = getConcordance(ex, item);
+                if (check === "PARTIAL") {
+                  concordance = "PARTIAL";
+                  matchedItem = ex;
+                  break; // Premier PARTIAL trouvé
+                }
               }
             }
           }
 
           if (concordance === "STRICT") {
-            // 🚫 Pas d'import
+            // 🚫 Pas d'import - doublon détecté
             results.push({ action: "ignored", row, id: matchedItem.id });
             ignoredCount++;
             continue;
           }
 
           if (concordance === "PARTIAL" || concordance === "NONE") {
-            // ✅ Nouvelle entrée
+            // ✅ Import avec statut approprié
             item.statut = concordance === "PARTIAL" ? "Fiche à vérifier" : "Fiche créée";
             delete item.__rowIndex;
             const newId = await itemsService.createOne(item);
