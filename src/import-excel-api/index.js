@@ -10,17 +10,20 @@ function getConcordance(existingItem, newItem) {
 
   // On ne garde que les adresses définies et non vides
   const existingAdresses = [existingItem.adresse, existingItem.adresse_2]
-    .filter(a => a?.trim())
+    .filter(a => a?.trim().length > 0)
     .map(a => a.trim().toLowerCase());
 
   const newAdresses = [newItem.adresse, newItem.adresse_2]
-    .filter(a => a?.trim())
+    .filter(a => a?.trim().length > 0)
     .map(a => a.trim().toLowerCase());
 
   // Vérifie si au moins une adresse correspond
   const adresseMatch = existingAdresses.some(ea => newAdresses.includes(ea));
 
-  const codePostalMatch = existingItem.code_postal?.trim() === newItem.code_postal?.trim();
+  const codePostalMatch = 
+    existingItem.code_postal?.trim() &&
+    newItem.code_postal?.trim() &&
+    existingItem.code_postal.trim() === newItem.code_postal.trim();
 
   // ✅ Concordance stricte → PAS D’IMPORT
   if (nomPrenomMatch && adresseMatch && codePostalMatch) {
@@ -130,25 +133,28 @@ export default function registerEndpoint(router, { services, getSchema, logger }
       const results = [];
       const errors = [];
       let createdCount = 0;
-      let updatedCount = 0;
       let ignoredCount = 0;
 
-      // 🛠️ Nouvelle logique d'import (sans clé spécifique)
+      // Charger tous les contacts une seule fois
+      const allExisting = await itemsService.readByQuery({ limit: -1 });
+
+
       for (const item of items) {
         const row = item.__rowIndex;
 
         try {
-          // On recherche d'abord des doublons potentiels sur "nom_prenom"
-          const existing = await itemsService.readByQuery({
-            filter: { nom_prenom: { _icontains: item.nom_prenom } },
-            limit: -1,
-          });
+
+          const candidatesExisting = allExisting.filter(
+            (ex) =>
+              ex.nom_prenom?.trim().toLowerCase() ===
+              item.nom_prenom?.trim().toLowerCase()
+          );
 
           let concordance = "NONE";
           let matchedItem = null;
 
-          if (existing.length > 0) {
-            for (const ex of existing) {
+          if (candidatesExisting.length > 0) {
+            for (const ex of candidatesExisting) {
               concordance = getConcordance(ex, item);
               if (concordance !== "NONE") {
                 matchedItem = ex;
@@ -180,18 +186,16 @@ export default function registerEndpoint(router, { services, getSchema, logger }
       }
 
       logger.info(
-        `Import terminé : ${createdCount} créés, ${updatedCount} mis à jour, ${ignoredCount} ignorés, ${errors.length} erreurs.`
+        `Import terminé : ${createdCount} créés, ${ignoredCount} ignorés, ${errors.length} erreurs.`
       );
       logger.info({
         created: createdCount,
-        updated: updatedCount,
         ignored: ignoredCount,
         failed: errors,
       });
 
       const parts = [];
       if (createdCount > 0) parts.push(`${createdCount} ${messages.created}`);
-      if (updatedCount > 0) parts.push(`${updatedCount} ${messages.updated}`);
       if (ignoredCount > 0) parts.push(`${ignoredCount} ${messages.ignored}`);
       if (errors.length > 0) parts.push(`${errors.length} ${messages.failed}`);
 
@@ -202,7 +206,6 @@ export default function registerEndpoint(router, { services, getSchema, logger }
           messages.processedItemsPrefix
         } ${summary}.`,
         created: createdCount,
-        updated: updatedCount,
         ignored: ignoredCount,
         failed: errors,
       });

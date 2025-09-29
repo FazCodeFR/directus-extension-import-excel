@@ -10,7 +10,6 @@ export const backendMessages = {
     internalError: 'Internal error during Excel import: {error}',
     processedItemsPrefix: 'items processed:',
     created: 'created',
-    updated: 'updated',
     failed: 'errors',
     ignored: 'ignored',
     none: 'no changes'
@@ -26,7 +25,6 @@ export const backendMessages = {
     internalError: 'Erreur interne lors de l’import Excel : {error}',
     processedItemsPrefix: 'éléments traités :',
     created: 'créés',
-    updated: 'mis à jour',
     failed: 'erreurs',
     ignored: 'ignorés',
     none: 'aucun changement'
@@ -42,7 +40,6 @@ export const backendMessages = {
     internalError: 'Excel içe aktarımı sırasında dahili hata: {error}',
     processedItemsPrefix: 'işlenen öğeler:',
     created: 'oluşturuldu',
-    updated: 'güncellendi',
     failed: 'hatalar',
     ignored: 'yoksayıldı',
     none: 'değişiklik yok'
