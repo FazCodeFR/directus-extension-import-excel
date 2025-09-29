@@ -17,7 +17,7 @@ function getConcordance(existingItem, newItem) {
   // Fonction pour extraire les adresses valides
   const getAdresses = (item) =>
     [item.adresse, item.adresse_2]
-      .filter(a => a && a.trim()) // Vérification que a existe avant .trim()
+      .filter(a => a && a.trim())
       .map(a => normalize(a));
 
   const existingAdresses = getAdresses(existingItem);
@@ -33,6 +33,15 @@ function getConcordance(existingItem, newItem) {
   const cp1 = normalize(existingItem.code_postal);
   const cp2 = normalize(newItem.code_postal);
   const codePostalMatch = cp1 && cp2 && cp1 === cp2;
+
+  // 🆕 CAS PARTICULIER : Si nom match mais TOUS les champs complémentaires sont vides
+  const hasNoAddress = existingAdresses.length === 0 && newAdresses.length === 0;
+  const hasNoPostalCode = !cp1 && !cp2;
+
+  if (nomPrenomMatch && hasNoAddress && hasNoPostalCode) {
+    // Même nom, pas d'adresse ni de CP dans les deux → doublon strict
+    return "STRICT";
+  }
 
   // ✅ Concordance stricte → PAS D'IMPORT
   // Nom identique + au moins une adresse correspond + code postal identique
