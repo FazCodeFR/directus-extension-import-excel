@@ -11,10 +11,10 @@ function normalize(str) {
 function getConcordance(existingItem, newItem) {
   const nomPrenomMatch = normalize(existingItem.nom_prenom) === normalize(newItem.nom_prenom);
 
-  // Court-circuit : si le nom ne matche pas, pas besoin de vérifier le reste
+  // Si le nom ne matche pas → nouvelle fiche
   if (!nomPrenomMatch) return "NONE";
 
-  // Fonction pour extraire les adresses valides
+  // Le nom matche, on vérifie adresse + CP
   const getAdresses = (item) =>
     [item.adresse, item.adresse_2]
       .filter(a => a && a.trim())
@@ -23,40 +23,24 @@ function getConcordance(existingItem, newItem) {
   const existingAdresses = getAdresses(existingItem);
   const newAdresses = getAdresses(newItem);
 
-  // Vérifie si au moins une adresse correspond (et qu'il y a des adresses)
+  // Au moins une adresse correspond
   const adresseMatch =
     existingAdresses.length > 0 &&
     newAdresses.length > 0 &&
     existingAdresses.some(ea => newAdresses.includes(ea));
 
-  // Normalisation du code postal
+  // Code postal identique
   const cp1 = normalize(existingItem.code_postal);
   const cp2 = normalize(newItem.code_postal);
   const codePostalMatch = cp1 && cp2 && cp1 === cp2;
 
-  // 🆕 CAS PARTICULIER : Si nom match mais TOUS les champs complémentaires sont vides
-  const hasNoAddress = existingAdresses.length === 0 && newAdresses.length === 0;
-  const hasNoPostalCode = !cp1 && !cp2;
-
-  if (nomPrenomMatch && hasNoAddress && hasNoPostalCode) {
-    // Même nom, pas d'adresse ni de CP dans les deux → doublon strict
-    return "STRICT";
-  }
-
-  // ✅ Concordance stricte → PAS D'IMPORT
-  // Nom identique + au moins une adresse correspond + code postal identique
+  // ✅ Concordance stricte : Nom + Adresse + CP tous identiques → Ignoré
   if (nomPrenomMatch && adresseMatch && codePostalMatch) {
     return "STRICT";
   }
 
-  // ⚠️ Concordance partielle → IMPORT AVEC STATUT À VÉRIFIER
-  // Nom identique + (adresse correspond OU code postal correspond)
-  if (nomPrenomMatch && (adresseMatch || codePostalMatch)) {
-    return "PARTIAL";
-  }
-
-  // ❌ Nouvelle entrée → IMPORT AVEC STATUT FICHE CRÉÉE
-  return "NONE";
+  // ⚠️ Tous les autres cas avec nom identique → À vérifier
+  return "PARTIAL";
 }
 
 function formatMessage(template, params) {
@@ -148,16 +132,17 @@ export default function registerEndpoint(router, { services, getSchema, logger }
 
       const results = [];
       const errors = [];
-      let createdCount = 0;
-      let ignoredCount = 0;
+      let createdCount = 0;        // "Fiche créée"
+      let toVerifyCount = 0;       // "Fiche à vérifier"
+      let ignoredCount = 0;        // Ignorés
 
       // Charger tous les contacts une seule fois
       const allExisting = await itemsService.readByQuery({ limit: -1 });
 
-      // ✅ Solution 2 : Détecter les doublons DANS le fichier importé
+      // ✅ Détecter les doublons DANS le fichier importé
       const processedInThisImport = [];
 
-      // 🛠️ Nouvelle logique d'import (avec priorité STRICT)
+      // 🛠️ Logique d'import simplifiée
       for (const item of items) {
         const row = item.__rowIndex;
 
@@ -219,7 +204,8 @@ export default function registerEndpoint(router, { services, getSchema, logger }
 
           if (concordance === "PARTIAL" || concordance === "NONE") {
             // ✅ Import avec statut approprié
-            item.statut = concordance === "PARTIAL" ? "Fiche à vérifier" : "Fiche créée";
+            const isPartial = concordance === "PARTIAL";
+            item.statut = isPartial ? "Fiche à vérifier" : "Fiche créée";
             delete item.__rowIndex;
             const newId = await itemsService.createOne(item);
 
@@ -228,8 +214,14 @@ export default function registerEndpoint(router, { services, getSchema, logger }
             allExisting.push(createdItem);
             processedInThisImport.push(createdItem);
 
-            results.push({ id: newId, action: "created", row });
-            createdCount++;
+            // 📊 Incrémenter le bon compteur
+            if (isPartial) {
+              results.push({ id: newId, action: "toVerify", row });
+              toVerifyCount++;
+            } else {
+              results.push({ id: newId, action: "created", row });
+              createdCount++;
+            }
             continue;
           }
 
@@ -239,16 +231,18 @@ export default function registerEndpoint(router, { services, getSchema, logger }
       }
 
       logger.info(
-        `Import terminé : ${createdCount} créés, ${ignoredCount} ignorés, ${errors.length} erreurs.`
+        `Import terminé : ${createdCount} créés, ${toVerifyCount} à vérifier, ${ignoredCount} ignorés, ${errors.length} erreurs.`
       );
       logger.info({
         created: createdCount,
+        toVerify: toVerifyCount,
         ignored: ignoredCount,
         failed: errors,
       });
 
       const parts = [];
       if (createdCount > 0) parts.push(`${createdCount} ${messages.created}`);
+      if (toVerifyCount > 0) parts.push(`${toVerifyCount} ${messages.toVerify}`);
       if (ignoredCount > 0) parts.push(`${ignoredCount} ${messages.ignored}`);
       if (errors.length > 0) parts.push(`${errors.length} ${messages.failed}`);
 
@@ -259,6 +253,7 @@ export default function registerEndpoint(router, { services, getSchema, logger }
           messages.processedItemsPrefix
         } ${summary}.`,
         created: createdCount,
+        toVerify: toVerifyCount,
         ignored: ignoredCount,
         failed: errors,
       });

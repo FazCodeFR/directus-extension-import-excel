@@ -58,33 +58,42 @@
       </div>
     </div>
 
-    <!-- 📝 Règles de concordance -->
-    <div class="step">
-      <h2>Les règles sont les suivantes :</h2>
-      <ul class="info-text">
-        <li>
-          <strong>Concordance stricte → Aucun import</strong>
-          <ul>
-            <li>Le Nom Prénom est identique</li>
-            <li>Au moins une adresse (adresse 1 ou 2) correspond</li>
-            <li>Le Code postal est identique</li>
-          </ul>
-        </li>
-        <li>
-          <strong>Concordance partielle → Import avec statut "À vérifier"</strong>
-          <ul>
-            <li>Le Nom Prénom est identique</li>
-            <li>Et (soit une adresse correspond, soit le code postal correspond)</li>
-          </ul>
-        </li>
-        <li>
-          <strong>Aucune concordance → Import avec statut "Fiche créée"</strong>
-          <ul>
-            <li>Aucun des cas précédents n'est rempli (nouvelle entrée détectée)</li>
-          </ul>
-        </li>
-      </ul>
-    </div>
+  <!-- 📝 Règles de concordance -->
+  <div class="step">
+    <h2>Règles d'import</h2>
+    <ul class="info-text">
+      <li>
+        <strong>Concordance stricte → Aucun import (Ignoré)</strong>
+        <ul>
+          <li>Le <strong>Nom Prénom est identique</strong> ET</li>
+          <li><strong>Au moins une adresse</strong> (adresse 1 ou 2) correspond ET</li>
+          <li>Le <strong>Code postal est identique</strong></li>
+          <li>→ <em>Doublon détecté, pas d'import</em></li>
+        </ul>
+      </li>
+      <li>
+        <strong>Concordance partielle → Import avec statut "À vérifier"</strong>
+        <ul>
+          <li>Le <strong>Nom Prénom est identique</strong> ET</li>
+          <li>Les conditions de concordance stricte ne sont <strong>PAS toutes remplies</strong>
+            <ul>
+              <li>Soit l'adresse ne correspond pas (différente ou manquante)</li>
+              <li>Soit le code postal ne correspond pas (différent ou manquant)</li>
+              <li>Soit les deux</li>
+            </ul>
+          </li>
+          <li>→ <em>Doublon potentiel, import avec statut "À vérifier"</em></li>
+        </ul>
+      </li>
+      <li>
+        <strong>Aucune concordance → Import avec statut "Fiche créée"</strong>
+        <ul>
+          <li>Le <strong>Nom Prénom est différent</strong> (peu importe les autres champs)</li>
+          <li>→ <em>Nouvelle personne détectée, import avec statut "Fiche créée"</em></li>
+        </ul>
+      </li>
+    </ul>
+  </div>
 
 
     <div class="step">
@@ -300,12 +309,13 @@ const alertType = computed(() => {
   if (!importResult.value) return null;
 
   const hasFailed = (importResult.value.failed || []).length > 0;
-  const hasCreatedOrUpdated =
-    (importResult.value.created || 0) > 0 || (importResult.value.updated || 0) > 0;
+  const hasCreatedOrVerified =
+    (importResult.value.created || 0) > 0 || 
+    (importResult.value.toVerify || 0) > 0;
 
-  if (hasFailed && !hasCreatedOrUpdated) return 'error';
-  if (hasFailed && hasCreatedOrUpdated) return 'warning';
-  if (!hasFailed && hasCreatedOrUpdated) return 'success';
+  if (hasFailed && !hasCreatedOrVerified) return 'error';
+  if (hasFailed && hasCreatedOrVerified) return 'warning';
+  if (!hasCreatedOrVerified && hasCreatedOrVerified) return 'success';
 
   return 'info';
 });
