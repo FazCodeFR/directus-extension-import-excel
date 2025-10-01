@@ -248,9 +248,24 @@ async function importFile() {
     });
 
     importResult.value = response.data;
-    successMessage.value = response.data.message || 'Import OK.';
-    errorMessage.value = '';
     failedRows.value = response.data.failed || [];
+    
+    // 🎯 Vérifier si c'est un échec total (que des erreurs)
+    const hasOnlyErrors = 
+      (response.data.created || 0) === 0 && 
+      (response.data.toVerify || 0) === 0 && 
+      (response.data.ignored || 0) === 0 &&
+      failedRows.value.length > 0;
+    
+    if (hasOnlyErrors) {
+      // Échec total : traiter comme une erreur
+      errorMessage.value = response.data.message || 'Toutes les lignes ont échoué.';
+      successMessage.value = '';
+    } else {
+      // Succès (avec ou sans erreurs partielles)
+      successMessage.value = response.data.message || 'Import OK.';
+      errorMessage.value = '';
+    }
 
     console.log('✅ Successful import', response);
   } catch (err) {
