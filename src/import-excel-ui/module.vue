@@ -58,48 +58,47 @@
       </div>
     </div>
 
-  <!-- 📝 Règles de concordance -->
-  <div class="step">
-    <h2>Règles d'import</h2>
-    <ul class="info-text">
-      <li>
-        <strong>Concordance stricte → Aucun import (Ignoré)</strong>
-        <ul>
-          <li>Le <strong>Nom Prénom est identique</strong> ET</li>
-          <li><strong>Au moins une adresse</strong> (adresse 1 ou 2) correspond ET</li>
-          <li>Le <strong>Code postal est identique</strong></li>
-          <li>→ <em>Doublon détecté, pas d'import</em></li>
-        </ul>
-      </li>
-      <li>
-        <strong>Concordance partielle → Import avec statut "À vérifier"</strong>
-        <ul>
-          <li>Le <strong>Nom Prénom est identique</strong> ET</li>
-          <li>Les conditions de concordance stricte ne sont <strong>PAS toutes remplies</strong>
-            <ul>
-              <li>Soit l'adresse ne correspond pas (différente ou manquante)</li>
-              <li>Soit le code postal ne correspond pas (différent ou manquant)</li>
-              <li>Soit les deux</li>
-            </ul>
-          </li>
-          <li>→ <em>Doublon potentiel, import avec statut "À vérifier"</em></li>
-        </ul>
-      </li>
-      <li>
-        <strong>Aucune concordance → Import avec statut "Fiche créée"</strong>
-        <ul>
-          <li>Le <strong>Nom Prénom est différent</strong> (peu importe les autres champs)</li>
-          <li>→ <em>Nouvelle personne détectée, import avec statut "Fiche créée"</em></li>
-        </ul>
-      </li>
-    </ul>
-  </div>
-
+    <!-- 📝 Règles de concordance -->
+    <div class="step">
+      <h2>Règles d'import</h2>
+      <ul class="info-text">
+        <li>
+          <strong>Concordance stricte → Aucun import (Ignoré)</strong>
+          <ul>
+            <li>Le <strong>Nom Prénom est identique</strong> ET</li>
+            <li><strong>Au moins une adresse</strong> (adresse 1 ou 2) correspond ET</li>
+            <li>Le <strong>Code postal est identique</strong></li>
+            <li>→ <em>Doublon détecté, pas d'import</em></li>
+          </ul>
+        </li>
+        <li>
+          <strong>Concordance partielle → Import avec statut "À vérifier"</strong>
+          <ul>
+            <li>Le <strong>Nom Prénom est identique</strong> ET</li>
+            <li>Les conditions de concordance stricte ne sont <strong>PAS toutes remplies</strong>
+              <ul>
+                <li>Soit l'adresse ne correspond pas (différente ou manquante)</li>
+                <li>Soit le code postal ne correspond pas (différent ou manquant)</li>
+                <li>Soit les deux</li>
+              </ul>
+            </li>
+            <li>→ <em>Doublon potentiel, import avec statut "À vérifier"</em></li>
+          </ul>
+        </li>
+        <li>
+          <strong>Aucune concordance → Import avec statut "Fiche créée"</strong>
+          <ul>
+            <li>Le <strong>Nom Prénom est différent</strong> (peu importe les autres champs)</li>
+            <li>→ <em>Nouvelle personne détectée, import avec statut "Fiche créée"</em></li>
+          </ul>
+        </li>
+      </ul>
+    </div>
 
     <div class="step">
       <h2>{{ 'Règles de fichier : ' }}</h2>
       <ul class="info-text">
-        <li> Pas de ligne d’en-tête (header) dans le fichier Excel. </li>
+        <li> Pas de ligne d'en-tête (header) dans le fichier Excel. </li>
         <li> Format .xlsx uniquement. </li>
         <li> Bien corriger le fichier avant import, en vérifiant les données et les formats. </li>
       </ul>
@@ -116,15 +115,16 @@
         :xLarge="true"
       >
         {{ t('importButton') }}
-    </VButton>
-
+      </VButton>
     </div>
 
+    <!-- 🎯 Message principal avec gestion des types -->
     <div
       v-if="successMessage || errorMessage"
       :class="['alert', alertType]"
     >
-      {{ successMessage || errorMessage }}
+      <pre v-if="errorMessage" style="white-space: pre-wrap; font-family: inherit; margin: 0;">{{ errorMessage }}</pre>
+      <span v-else>{{ successMessage }}</span>
     </div>
 
     <!-- ℹ️ Détail en bas : erreurs ligne par ligne -->
@@ -155,7 +155,6 @@ import * as XLSX from 'xlsx';
 import { useI18n } from 'vue-i18n';
 import { messages } from '../shared/i18nModule';
 
-
 // Stores et API
 const api = useApi();
 const { useCollectionsStore } = useStores();
@@ -172,9 +171,7 @@ const importResult = ref(null);
 const successMessage = ref('');
 const errorMessage = ref('');
 const failedRows = ref([]);
-
 const projectLanguage = ref('');
-
 const isLoading = ref(false);
 
 // 🔄 Retrieves the project language
@@ -192,7 +189,6 @@ const { t } = useI18n({
   locale: projectLanguage.value,
   messages,
 });
-
 
 // 🔄 Retrieves visible collections
 const availableCollections = computed(() =>
@@ -235,11 +231,10 @@ function getAvailableFields(currentIndex) {
 
   return contactFields.value
     .filter(field => !usedFields.includes(field.value))
-    .sort((a, b) => a.label.localeCompare(b.label)); // tri alphabétique
+    .sort((a, b) => a.label.localeCompare(b.label));
 }
 
-
-// 📤 Import Excel file
+// 📤 Import Excel file avec gestion d'erreur améliorée
 async function importFile() {
   try {
     isLoading.value = true; 
@@ -247,6 +242,7 @@ async function importFile() {
     formData.append('file', selectedFile.value);
     formData.append('collection', selectedCollection.value);
     formData.append('mapping', JSON.stringify(mapping.value));
+    
     const response = await api.post('/import-excel-api', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
@@ -258,18 +254,60 @@ async function importFile() {
 
     console.log('✅ Successful import', response);
   } catch (err) {
-    errorMessage.value = err?.response?.data?.message || 'An error has occurred during import.';
+    console.error('❌ Error when importing:', err);
+    
+    // 🔍 Extraction détaillée de l'erreur
+    let detailedError = 'An error has occurred during import.';
+    
+    if (err?.response?.data) {
+      const errorData = err.response.data;
+      
+      // Message principal
+      if (errorData.message) {
+        detailedError = errorData.message;
+      }
+      
+      // Si des erreurs de lignes spécifiques existent
+      if (errorData.failed && Array.isArray(errorData.failed) && errorData.failed.length > 0) {
+        failedRows.value = errorData.failed;
+        
+        // Ajouter un résumé des erreurs au message
+        const errorSummary = errorData.failed
+          .slice(0, 5) // Limiter à 5 premières erreurs pour l'affichage
+          .map(f => `Ligne ${f.row}: ${f.error}`)
+          .join('\n');
+        
+        detailedError += `\n\nDétails des erreurs:\n${errorSummary}`;
+        
+        if (errorData.failed.length > 5) {
+          detailedError += `\n... et ${errorData.failed.length - 5} autre(s) erreur(s)`;
+        }
+      }
+      
+      // Code d'erreur si disponible
+      if (errorData.code) {
+        detailedError += `\n\n[Code: ${errorData.code}]`;
+      }
+    } else if (err?.message) {
+      detailedError = err.message;
+    }
+    
+    errorMessage.value = detailedError;
     successMessage.value = '';
-    failedRows.value = [];
+    failedRows.value = failedRows.value || [];
     importResult.value = null;
-
-    console.error('❌ Error when importing :', err);
+    
+    // 📊 Log structuré pour debug
+    console.error('Error details:', {
+      status: err?.response?.status,
+      statusText: err?.response?.statusText,
+      data: err?.response?.data,
+      message: err?.message
+    });
   } finally {
     isLoading.value = false;
   }
 }
-
-
 
 // 📁 Manage file upload
 function handleFileUpload(e) {
@@ -305,7 +343,11 @@ function copyErrors() {
   });
 }
 
+// 🎨 Calcul du type d'alerte
 const alertType = computed(() => {
+  // Prioriser l'erreur si présente
+  if (errorMessage.value) return 'error';
+  
   if (!importResult.value) return null;
 
   const hasFailed = (importResult.value.failed || []).length > 0;
@@ -313,13 +355,17 @@ const alertType = computed(() => {
     (importResult.value.created || 0) > 0 || 
     (importResult.value.toVerify || 0) > 0;
 
+  // Erreur pure : seulement des échecs
   if (hasFailed && !hasCreatedOrVerified) return 'error';
+  
+  // Warning : mélange succès + échecs
   if (hasFailed && hasCreatedOrVerified) return 'warning';
-  if (!hasCreatedOrVerified && hasCreatedOrVerified) return 'success';
+  
+  // Succès : seulement des créations/vérifications
+  if (hasCreatedOrVerified && !hasFailed) return 'success';
 
   return 'info';
 });
-
 
 // 🔁 Initialisation
 onMounted(async () => {
@@ -337,6 +383,7 @@ onMounted(async () => {
   margin-bottom: 30px;
   padding: 0 46px;
 }
+
 .mapping-table {
   display: flex;
   flex-direction: column;
@@ -367,8 +414,6 @@ onMounted(async () => {
 
 .example-data {
   font-family: monospace;
-  /* background-color: #f8f8f8; */
-  /* padding: 5px; */
   font-style: italic;
   font-size: 0.9em;
   border-radius: 4px;
@@ -402,4 +447,9 @@ onMounted(async () => {
   border: 1px solid var(--theme--warning-border, #ffecb5);
 }
 
+.alert.info {
+  background: var(--theme--info-background, #e3f2fd);
+  color: var(--theme--info-foreground, #01579b);
+  border: 1px solid var(--theme--info-border, #90caf9);
+}
 </style>
