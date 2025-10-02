@@ -230,11 +230,13 @@ export default function registerEndpoint(router, { services, getSchema, logger }
                     id: ex.id, 
                     nom_prenom: ex.nom_prenom, 
                     adresse: ex.adresse,
+                    adresse_2: ex.adresse_2 || "(vide)",
                     code_postal: ex.code_postal
                   },
                   newContact: { 
                     nom_prenom: item.nom_prenom, 
                     adresse: item.adresse,
+                    adresse_2: item.adresse_2 || "(vide)",
                     code_postal: item.code_postal
                   }
                 });
@@ -254,11 +256,13 @@ export default function registerEndpoint(router, { services, getSchema, logger }
                       id: ex.id, 
                       nom_prenom: ex.nom_prenom, 
                       adresse: ex.adresse,
+                      adresse_2: ex.adresse_2 || "(vide)",
                       code_postal: ex.code_postal
                     },
                     newContact: { 
                       nom_prenom: item.nom_prenom, 
                       adresse: item.adresse,
+                      adresse_2: item.adresse_2 || "(vide)",
                       code_postal: item.code_postal
                     }
                   });
