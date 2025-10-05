@@ -218,7 +218,10 @@ export default function registerEndpoint(router, { services, getSchema, logger }
 
       // Charger tous les contacts existants
       log("Chargement des contacts existants en base...");
-      const allExisting = await itemsService.readByQuery({ limit: -1 });
+      const allExisting = await itemsService.readByQuery({ 
+        limit: -1,
+        fields: ['id', 'nom_prenom', 'adresse', 'adresse_2', 'code_postal']
+      });
       log(`${allExisting.length} contacts existants charges`);
       log("");
 
