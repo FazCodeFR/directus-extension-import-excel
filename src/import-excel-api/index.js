@@ -1,27 +1,31 @@
 import multer from "multer";
 import * as XLSX from "xlsx";
-import { backendMessages } from "../shared/i18nApi.js"; // adapte le chemin
+import { backendMessages } from "../shared/i18nApi.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
-// 🔧 Fonction utilitaire : normalisation des chaînes
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Fonction utilitaire : normalisation des chaînes
 function normalize(str) {
   if (!str) return "";
   
   return str
-    .trim()                           // Enlève espaces début/fin
-    .toLowerCase()                    // Minuscules
-    .replace(/[,.\-']/g, " ")         // Remplace ponctuation par espace
-    .replace(/\s+/g, " ")             // Espaces multiples → 1 seul
-    .trim();                          // Re-trim final
+    .trim()
+    .toLowerCase()
+    .replace(/[,.\-']/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-// 🔎 Fonction utilitaire : check concordance
+// Fonction utilitaire : check concordance
 function getConcordance(existingItem, newItem) {
   const nomPrenomMatch = normalize(existingItem.nom_prenom) === normalize(newItem.nom_prenom);
 
-  // Si le nom ne matche pas → nouvelle fiche
   if (!nomPrenomMatch) return "NONE";
 
-  // Le nom matche, on vérifie adresse + CP
   const getAdresses = (item) =>
     [item.adresse, item.adresse_2]
       .filter(a => a && a.trim())
@@ -30,23 +34,19 @@ function getConcordance(existingItem, newItem) {
   const existingAdresses = getAdresses(existingItem);
   const newAdresses = getAdresses(newItem);
 
-  // Au moins une adresse correspond
   const adresseMatch =
     existingAdresses.length > 0 &&
     newAdresses.length > 0 &&
     existingAdresses.some(ea => newAdresses.includes(ea));
 
-  // Code postal identique
   const cp1 = normalize(existingItem.code_postal);
   const cp2 = normalize(newItem.code_postal);
   const codePostalMatch = cp1 && cp2 && cp1 === cp2;
 
-  // ✅ Concordance stricte : Nom + Adresse + CP tous identiques → Ignoré
   if (nomPrenomMatch && adresseMatch && codePostalMatch) {
     return "STRICT";
   }
 
-  // ⚠️ Tous les autres cas avec nom identique → À vérifier
   return "PARTIAL";
 }
 
@@ -54,7 +54,7 @@ function formatMessage(template, params) {
   return template.replace(/\{(\w+)\}/g, (_, key) => params[key] || "");
 }
 
-function handleItemError(row, error, logger, errors, item = {}) {
+function handleItemError(row, error, logFunc, errors, item = {}) {
   const detail =
     error?.map?.((e) => {
       const field = e.extensions?.field || e.path || "inconnu";
@@ -71,14 +71,12 @@ function handleItemError(row, error, logger, errors, item = {}) {
   const code =
     error?.errors?.[0]?.code || error?.[0]?.code || error?.code || "UNKNOWN";
 
-  logger.error(`Erreur ligne ${row} : ${detail}`);
-  logger.error({ row, error: detail, code });
-
+  logFunc(`ERREUR ligne ${row} : ${detail}`);
   errors.push({ row, error: detail, code });
 }
 
 export default function registerEndpoint(router, { services, getSchema, logger }) {
-  const { ItemsService } = services;
+  const { ItemsService, FilesService } = services;
 
   const storage = multer.memoryStorage();
   const upload = multer({ storage });
@@ -86,54 +84,85 @@ export default function registerEndpoint(router, { services, getSchema, logger }
   router.post("/", upload.single("file"), async (req, res) => {
     const startTime = Date.now();
     
+    // Créer un fichier de log unique pour cet import
+    const logFileName = `import_${Date.now()}_${Math.random().toString(36).substring(7)}.log`;
+    const logFilePath = path.join(__dirname, "../../../uploads", logFileName);
+    const logStream = fs.createWriteStream(logFilePath);
+
+    // Fonction helper pour écrire dans le log (format texte lisible)
+    const log = (message) => {
+      const timestamp = new Date().toISOString();
+      logStream.write(`[${timestamp}] ${message}\n`);
+      logger.info(message);
+    };
+
+    let createdCount = 0;
+    let toVerifyCount = 0;
+    let ignoredCount = 0;
+    let totalItems = 0;
+
     try {
       const lang = (req.headers["accept-language"] || "en-US").split(",")[0];
       const messages = backendMessages[lang] || backendMessages["en-US"];
 
-      // 📥 Log début d'import
-      logger.info("=== DÉBUT D'IMPORT ===");
-      logger.info({ 
-        user: req.accountability?.user, 
-        lang,
-        collection: req.body.collection,
-        fileName: req.file?.originalname
-      });
+      log("================================================================================");
+      log("DEBUT D'IMPORT");
+      log("================================================================================");
+      log(`Utilisateur : ${req.accountability?.user || "Inconnu"}`);
+      log(`Langue : ${lang}`);
+      log(`Collection : ${req.body.collection}`);
+      log(`Fichier : ${req.file?.originalname}`);
+      log("");
 
-      if (!req.file)
+      if (!req.file) {
+        log("ERREUR : Fichier manquant");
+        logStream.end();
         return res.status(400).json({ message: messages.missingFile });
+      }
 
-      if (!req.body.collection)
+      if (!req.body.collection) {
+        log("ERREUR : Collection manquante");
+        logStream.end();
         return res.status(400).json({ message: messages.missingCollection });
+      }
 
-      if (!req.body.mapping)
+      if (!req.body.mapping) {
+        log("ERREUR : Mapping manquant");
+        logStream.end();
         return res.status(400).json({ message: messages.missingMapping });
+      }
 
       const schema = await getSchema();
       const collectionName = req.body.collection;
       const mapping = JSON.parse(req.body.mapping);
-      const keyField = req.body.keyField || null;
 
-      // 🗺️ Log du mapping
-      logger.info("Mapping utilisé :");
-      logger.info({ mapping });
+      log("Mapping utilise :");
+      Object.entries(mapping).forEach(([col, field]) => {
+        if (field) log(`  Colonne ${col} -> ${field}`);
+      });
+      log("");
 
       const itemsService = new ItemsService(collectionName, {
         schema,
         accountability: req.accountability,
       });
 
-      // 📄 Parsing Excel
-      logger.info(`Parsing du fichier "${req.file.originalname}" (${req.file.size} octets)...`);
+      // Parsing Excel
+      log(`Parsing du fichier "${req.file.originalname}" (${req.file.size} octets)...`);
       const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-      logger.info(`Fichier parsé : ${rows.length} lignes brutes détectées`);
+      log(`Fichier parse : ${rows.length} lignes brutes detectees`);
+      log("");
 
-      if (rows.length === 0)
+      if (rows.length === 0) {
+        log("ERREUR : Fichier vide");
+        logStream.end();
         return res.status(400).json({ message: messages.emptyFile });
+      }
 
-      // 🔄 Transformation des lignes
+      // Transformation des lignes
       const items = rows
         .map((row, rowIndex) => {
           const item = {};
@@ -154,56 +183,56 @@ export default function registerEndpoint(router, { services, getSchema, logger }
         })
         .filter((item) => Object.keys(item).length > 1);
 
-      logger.info(`${items.length} items valides après transformation (lignes vides ignorées)`);
+      log(`${items.length} items valides apres transformation (lignes vides ignorees)`);
+      log("");
 
-      if (items.length === 0)
+      if (items.length === 0) {
+        log("ERREUR : Aucun item valide");
+        logStream.end();
         return res.status(400).json({ message: messages.noValidItems });
+      }
 
+      totalItems = items.length;
       const results = [];
       const errors = [];
-      let createdCount = 0;        // "Fiche créée"
-      let toVerifyCount = 0;       // "Fiche à vérifier"
-      let ignoredCount = 0;        // Ignorés
 
-      // 🔍 Charger tous les contacts une seule fois
-      logger.info("Chargement des contacts existants en base...");
+      // Charger tous les contacts existants
+      log("Chargement des contacts existants en base...");
       const allExisting = await itemsService.readByQuery({ limit: -1 });
-      logger.info(`${allExisting.length} contacts existants chargés`);
+      log(`${allExisting.length} contacts existants charges`);
+      log("");
 
-      // ✅ Détecter les doublons DANS le fichier importé
       const processedInThisImport = [];
 
-      // 🛠️ Logique d'import simplifiée
-      logger.info("Début du traitement des items...");
-      
+      log("DEBUT DU TRAITEMENT DES ITEMS");
+      log("--------------------------------------------------------------------------------");
+      log("");
+
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         const row = item.__rowIndex;
 
-        // 📊 Log de progression tous les 10 items
+        // Log de progression tous les 10 items
         if ((i + 1) % 10 === 0) {
-          logger.info(`Progression: ${i + 1}/${items.length} items traités`);
+          log(`Progression : ${i + 1}/${items.length} items traites`);
         }
 
         try {
-          // ✅ Vérification que nom_prenom existe
+          // Vérification que nom_prenom existe
           const normalizedNomPrenom = normalize(item.nom_prenom);
           if (!normalizedNomPrenom) {
-            logger.warn(`Ligne ${row} : nom_prenom manquant ou vide`, { item });
+            log(`Ligne ${row} : nom_prenom manquant ou vide - IGNORE`);
             handleItemError(
               row,
               [{ code: "MISSING_NAME", message: "nom_prenom manquant ou vide" }],
-              logger,
+              log,
               errors,
               item
             );
             continue;
           }
 
-          // 🔍 Log de recherche de doublons
-          logger.debug(`Ligne ${row} : recherche doublons pour "${item.nom_prenom}"`);
-
-          // ✅ Filtrer les candidats dans la DB ET dans ce qu'on vient de créer
+          // Recherche de doublons
           const candidatesExisting = [
             ...allExisting,
             ...processedInThisImport
@@ -211,117 +240,67 @@ export default function registerEndpoint(router, { services, getSchema, logger }
             (ex) => normalize(ex.nom_prenom) === normalizedNomPrenom
           );
 
-          if (candidatesExisting.length > 0) {
-            logger.debug(`Ligne ${row} : ${candidatesExisting.length} candidat(s) avec le même nom trouvé(s)`);
-          }
-
           let concordance = "NONE";
           let matchedItem = null;
 
           if (candidatesExisting.length > 0) {
-            // ✅ 1️⃣ Chercher d'abord une concordance STRICT (prioritaire)
+            // 1. Chercher concordance STRICT
             for (const ex of candidatesExisting) {
               const check = getConcordance(ex, item);
               if (check === "STRICT") {
                 concordance = "STRICT";
                 matchedItem = ex;
-                logger.info(`Ligne ${row} : concordance STRICT détectée avec contact existant ID ${ex.id}`, {
-                  existingContact: { 
-                    id: ex.id, 
-                    nom_prenom: ex.nom_prenom, 
-                    adresse: ex.adresse,
-                    adresse_2: ex.adresse_2 || "(vide)",
-                    code_postal: ex.code_postal
-                  },
-                  newContact: { 
-                    nom_prenom: item.nom_prenom, 
-                    adresse: item.adresse,
-                    adresse_2: item.adresse_2 || "(vide)",
-                    code_postal: item.code_postal
-                  }
-                });
-                break; // Match exact trouvé, on arrête
+                log(`Ligne ${row} : DOUBLON STRICT detecte avec contact ID ${ex.id}`);
+                log(`  Existant : ${ex.nom_prenom} | ${ex.adresse || '(vide)'} | CP: ${ex.code_postal || '(vide)'}`);
+                log(`  Nouveau  : ${item.nom_prenom} | ${item.adresse || '(vide)'} | CP: ${item.code_postal || '(vide)'}`);
+                break;
               }
             }
 
-            // ✅ 2️⃣ Si pas de STRICT, chercher une concordance PARTIAL
+            // 2. Si pas de STRICT, chercher PARTIAL
             if (concordance === "NONE") {
               for (const ex of candidatesExisting) {
                 const check = getConcordance(ex, item);
                 if (check === "PARTIAL") {
                   concordance = "PARTIAL";
                   matchedItem = ex;
-                  logger.info(`Ligne ${row} : concordance PARTIAL détectée avec contact existant ID ${ex.id}`, {
-                    existingContact: { 
-                      id: ex.id, 
-                      nom_prenom: ex.nom_prenom, 
-                      adresse: ex.adresse,
-                      adresse_2: ex.adresse_2 || "(vide)",
-                      code_postal: ex.code_postal
-                    },
-                    newContact: { 
-                      nom_prenom: item.nom_prenom, 
-                      adresse: item.adresse,
-                      adresse_2: item.adresse_2 || "(vide)",
-                      code_postal: item.code_postal
-                    }
-                  });
-                  break; // Premier PARTIAL trouvé
+                  log(`Ligne ${row} : CONCORDANCE PARTIELLE avec contact ID ${ex.id}`);
+                  log(`  Existant : ${ex.nom_prenom} | ${ex.adresse || '(vide)'} | CP: ${ex.code_postal || '(vide)'}`);
+                  log(`  Nouveau  : ${item.nom_prenom} | ${item.adresse || '(vide)'} | CP: ${item.code_postal || '(vide)'}`);
+                  break;
                 }
               }
             }
           }
 
           if (concordance === "STRICT") {
-            // 🚫 Pas d'import - doublon détecté
-            logger.info(`Ligne ${row} : IGNORÉ - doublon exact avec ID ${matchedItem.id}`);
+            log(`Ligne ${row} : IGNORE (doublon exact avec ID ${matchedItem.id})`);
+            log("");
             results.push({ action: "ignored", row, id: matchedItem.id });
             ignoredCount++;
             continue;
           }
 
           if (concordance === "PARTIAL" || concordance === "NONE") {
-            // ✅ Import avec statut approprié
             const isPartial = concordance === "PARTIAL";
             item.statut = isPartial ? "Fiche à vérifier" : "Fiche créée";
             
-            // 📊 Log détaillé pour les fiches à vérifier
-            if (isPartial && matchedItem) {
-              logger.info(`Ligne ${row} : FICHE À VÉRIFIER - Différences détectées :`);
-              logger.info({
-                contactExistantDB: {
-                  id: matchedItem.id,
-                  nom_prenom: matchedItem.nom_prenom,
-                  adresse: matchedItem.adresse || "(vide)",
-                  adresse_2: matchedItem.adresse_2 || "(vide)",
-                  code_postal: matchedItem.code_postal || "(vide)"
-                },
-                nouveauContactFichier: {
-                  nom_prenom: item.nom_prenom,
-                  adresse: item.adresse || "(vide)",
-                  adresse_2: item.adresse_2 || "(vide)",
-                  code_postal: item.code_postal || "(vide)"
-                }
-              });
-            }
-            
             delete item.__rowIndex;
             
-            logger.debug(`Ligne ${row} : création du contact avec statut "${item.statut}"`);
             const newId = await itemsService.createOne(item);
 
-            // ✅ Ajouter aux deux listes pour détecter les doublons dans le même fichier
             const createdItem = { ...item, id: newId };
             allExisting.push(createdItem);
             processedInThisImport.push(createdItem);
 
-            // 📊 Incrémenter le bon compteur
             if (isPartial) {
-              logger.info(`Ligne ${row} : contact créé ID ${newId} avec statut "Fiche à vérifier"`);
+              log(`Ligne ${row} : CREE avec statut "Fiche a verifier" (ID ${newId})`);
+              log("");
               results.push({ id: newId, action: "toVerify", row });
               toVerifyCount++;
             } else {
-              logger.info(`Ligne ${row} : contact créé ID ${newId} avec statut "Fiche créée"`);
+              log(`Ligne ${row} : CREE avec statut "Fiche creee" (ID ${newId})`);
+              log("");
               results.push({ id: newId, action: "created", row });
               createdCount++;
             }
@@ -329,27 +308,70 @@ export default function registerEndpoint(router, { services, getSchema, logger }
           }
 
         } catch (error) {
-          logger.error(`Ligne ${row} : erreur lors du traitement`, { error });
-          handleItemError(row, error, logger, errors, item);
+          log(`Ligne ${row} : ERREUR lors du traitement`);
+          log(`  Details : ${error.message || error}`);
+          log("");
+          handleItemError(row, error, log, errors, item);
         }
       }
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
 
-      logger.info("=== IMPORT TERMINÉ ===");
-      logger.info(
-        `Import terminé en ${duration}s : ${createdCount} créés, ${toVerifyCount} à vérifier, ${ignoredCount} ignorés, ${errors.length} erreurs.`
-      );
-      logger.info({
-        duration: `${duration}s`,
-        totalProcessed: items.length,
-        created: createdCount,
-        toVerify: toVerifyCount,
-        ignored: ignoredCount,
-        failed: errors.length,
-        successRate: `${(((createdCount + toVerifyCount) / items.length) * 100).toFixed(1)}%`
+      log("");
+      log("================================================================================");
+      log("IMPORT TERMINE");
+      log("================================================================================");
+      log(`Duree : ${duration}s`);
+      log(`Total traite : ${items.length} items`);
+      log(`Crees : ${createdCount}`);
+      log(`A verifier : ${toVerifyCount}`);
+      log(`Ignores : ${ignoredCount}`);
+      log(`Erreurs : ${errors.length}`);
+      log(`Taux de succes : ${(((createdCount + toVerifyCount) / items.length) * 100).toFixed(1)}%`);
+      log("================================================================================");
+
+      // Fermer le fichier de log et l'uploader dans Directus
+      logStream.end();
+
+      // Attendre que le stream soit fermé
+      await new Promise((resolve) => logStream.on('finish', resolve));
+
+      const filesService = new FilesService({
+        schema,
+        accountability: req.accountability,
       });
 
+      // Construire le résumé pour la description
+      const summaryParts = [];
+      if (createdCount > 0) summaryParts.push(`${createdCount} crees`);
+      if (toVerifyCount > 0) summaryParts.push(`${toVerifyCount} a verifier`);
+      if (ignoredCount > 0) summaryParts.push(`${ignoredCount} ignores`);
+      if (errors.length > 0) summaryParts.push(`${errors.length} erreurs`);
+      
+      const summaryText = `${totalItems} items traites : ${summaryParts.join(', ')}`;
+      const dateText = new Date().toLocaleString('fr-FR', {
+        dateStyle: 'long',
+        timeStyle: 'medium'
+      });
+      
+      const description = `${summaryText}\nDate: ${dateText}`;
+
+      // Upload du fichier de log
+      const logFileStream = fs.createReadStream(logFilePath);
+      const logFileId = await filesService.uploadOne(logFileStream, {
+        filename_download: logFileName,
+        type: 'text/plain',
+        storage: 'local',
+        title: `Import Log - ${new Date().toLocaleString('fr-FR')}`,
+        description: description,
+      });
+
+      logger.info(`Fichier de log uploade avec ID : ${logFileId}`);
+
+      // Nettoyer le fichier temporaire
+      fs.unlinkSync(logFilePath);
+
+      // Construire le message de résumé
       const parts = [];
       if (createdCount > 0) parts.push(`${createdCount} ${messages.created}`);
       if (toVerifyCount > 0) parts.push(`${toVerifyCount} ${messages.toVerify}`);
@@ -366,10 +388,24 @@ export default function registerEndpoint(router, { services, getSchema, logger }
         toVerify: toVerifyCount,
         ignored: ignoredCount,
         failed: errors,
+        logFileId: logFileId,
+        logFileName: logFileName,
       });
     } catch (error) {
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-      logger.error(`=== ERREUR FATALE APRÈS ${duration}s ===`);
+      
+      log("");
+      log("================================================================================");
+      log(`ERREUR FATALE APRES ${duration}s`);
+      log("================================================================================");
+      log(error.message || error);
+      if (error.stack) {
+        log("Stack trace :");
+        log(error.stack);
+      }
+      log("================================================================================");
+      
+      logStream.end();
       
       const lang = (req.headers["accept-language"] || "en-US").split(",")[0];
       const messages = backendMessages[lang] || backendMessages["en-US"];

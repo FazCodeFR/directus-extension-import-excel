@@ -58,49 +58,48 @@
       </div>
     </div>
 
-    <!-- 📝 Règles de concordance -->
     <div class="step">
-      <h2>Règles d'import</h2>
+      <h2>Regles d'import</h2>
       <ul class="info-text">
         <li>
-          <strong>Concordance stricte → Aucun import (Ignoré)</strong>
+          <strong>Concordance stricte - Aucun import (Ignore)</strong>
           <ul>
-            <li>Le <strong>Nom Prénom est identique</strong> ET</li>
+            <li>Le <strong>Nom Prenom est identique</strong> ET</li>
             <li><strong>Au moins une adresse</strong> (adresse 1 ou 2) correspond ET</li>
             <li>Le <strong>Code postal est identique</strong></li>
-            <li>→ <em>Doublon détecté, pas d'import</em></li>
+            <li>- Doublon detecte, pas d'import</li>
           </ul>
         </li>
         <li>
-          <strong>Concordance partielle → Import avec statut "À vérifier"</strong>
+          <strong>Concordance partielle - Import avec statut "A verifier"</strong>
           <ul>
-            <li>Le <strong>Nom Prénom est identique</strong> ET</li>
+            <li>Le <strong>Nom Prenom est identique</strong> ET</li>
             <li>Les conditions de concordance stricte ne sont <strong>PAS toutes remplies</strong>
               <ul>
-                <li>Soit l'adresse ne correspond pas (différente ou manquante)</li>
-                <li>Soit le code postal ne correspond pas (différent ou manquant)</li>
+                <li>Soit l'adresse ne correspond pas (differente ou manquante)</li>
+                <li>Soit le code postal ne correspond pas (different ou manquant)</li>
                 <li>Soit les deux</li>
               </ul>
             </li>
-            <li>→ <em>Doublon potentiel, import avec statut "À vérifier"</em></li>
+            <li>- Doublon potentiel, import avec statut "A verifier"</li>
           </ul>
         </li>
         <li>
-          <strong>Aucune concordance → Import avec statut "Fiche créée"</strong>
+          <strong>Aucune concordance - Import avec statut "Fiche creee"</strong>
           <ul>
-            <li>Le <strong>Nom Prénom est différent</strong> (peu importe les autres champs)</li>
-            <li>→ <em>Nouvelle personne détectée, import avec statut "Fiche créée"</em></li>
+            <li>Le <strong>Nom Prenom est different</strong> (peu importe les autres champs)</li>
+            <li>- Nouvelle personne detectee, import avec statut "Fiche creee"</li>
           </ul>
         </li>
       </ul>
     </div>
 
     <div class="step">
-      <h2>{{ 'Règles de fichier : ' }}</h2>
+      <h2>{{ 'Regles de fichier : ' }}</h2>
       <ul class="info-text">
-        <li> Pas de ligne d'en-tête (header) dans le fichier Excel. </li>
+        <li> Pas de ligne d'en-tete (header) dans le fichier Excel. </li>
         <li> Format .xlsx uniquement. </li>
-        <li> Bien corriger le fichier avant import, en vérifiant les données et les formats. </li>
+        <li> Bien corriger le fichier avant import, en verifiant les donnees et les formats. </li>
       </ul>
     </div>
     <br><br>
@@ -118,16 +117,27 @@
       </VButton>
     </div>
 
-    <!-- 🎯 Message principal avec gestion des types -->
     <div
       v-if="successMessage || errorMessage"
       :class="['alert', alertType]"
     >
       <pre v-if="errorMessage" style="white-space: pre-wrap; font-family: inherit; margin: 0;">{{ errorMessage }}</pre>
       <span v-else>{{ successMessage }}</span>
+      
+      <div v-if="logFileId" class="log-file-link">
+        <br>
+        <strong>Pour plus de details, consultez le fichier de logs :</strong>
+        <br>
+        <a 
+          :href="getLogFileUrl()" 
+          target="_blank" 
+          class="log-link"
+        >
+          {{ logFileName }}
+        </a>
+      </div>
     </div>
 
-    <!-- ℹ️ Détail en bas : erreurs ligne par ligne -->
     <div v-if="failedRows.length > 0" class="alert info">
       <strong>{{ t('errorsDetected') }}</strong>
       <VButton
@@ -140,7 +150,7 @@
       </VButton>
       <ul>
         <li v-for="row in failedRows" :key="row.row">
-          Ligne {{ row.row }}{{ row.key ? ` (clé : ${row.key})` : '' }} : {{ row.error }}
+          Ligne {{ row.row }}{{ row.key ? ` (cle : ${row.key})` : '' }} : {{ row.error }}
         </li>
       </ul>
     </div>
@@ -155,12 +165,10 @@ import * as XLSX from 'xlsx';
 import { useI18n } from 'vue-i18n';
 import { messages } from '../shared/i18nModule';
 
-// Stores et API
 const api = useApi();
 const { useCollectionsStore } = useStores();
 const collectionsStore = useCollectionsStore();
 
-// État
 const selectedCollection = ref(null);
 const collections = ref([]);
 const contactFields = ref([]);
@@ -173,15 +181,16 @@ const errorMessage = ref('');
 const failedRows = ref([]);
 const projectLanguage = ref('');
 const isLoading = ref(false);
+const logFileId = ref(null);
+const logFileName = ref('');
 
-// 🔄 Retrieves the project language
 async function fetchProjectInfo() {
   try {
     const response = await api.get('/server/info');
     projectLanguage.value = response.data.data.project.default_language || 'en-US';
-    console.log('✅ Project language :', projectLanguage.value);
+    console.log('Project language :', projectLanguage.value);
   } catch (err) {
-    console.error('❌ Unable to retrieve the project language', err);
+    console.error('Unable to retrieve the project language', err);
   }
 }
 
@@ -190,7 +199,6 @@ const { t } = useI18n({
   messages,
 });
 
-// 🔄 Retrieves visible collections
 const availableCollections = computed(() =>
   collectionsStore.visibleCollections
     .filter((col) => col.schema && col.schema.name)
@@ -201,7 +209,6 @@ const availableCollections = computed(() =>
     .sort((a, b) => a.label.localeCompare(b.label))
 );
 
-// 🔄 Retrieves fields from the selected collection
 async function fetchFields(collection) {
   try {
     const response = await api.get(`/fields/${collection}`);
@@ -217,13 +224,12 @@ async function fetchFields(collection) {
         return { value: f.field, label };
       });
 
-    console.log(`✅ Fields recovered for ${collection} :`, contactFields.value);
+    console.log(`Fields recovered for ${collection} :`, contactFields.value);
   } catch (err) {
-    console.error(`❌ Error retrieving fields for ${collection} :`, err);
+    console.error(`Error retrieving fields for ${collection} :`, err);
   }
 }
 
-// ⚙️ Filter fields to avoid duplicate mapping
 function getAvailableFields(currentIndex) {
   const usedFields = Object.entries(mapping.value)
     .filter(([index, value]) => value && Number(index) !== currentIndex)
@@ -234,10 +240,18 @@ function getAvailableFields(currentIndex) {
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
-// 📤 Import Excel file avec gestion d'erreur améliorée
+function getLogFileUrl() {
+  const baseUrl = window.location.origin;
+  return `${baseUrl}/admin/files/${logFileId.value}`;
+}
+
 async function importFile() {
   try {
-    isLoading.value = true; 
+    isLoading.value = true;
+    
+    logFileId.value = null;
+    logFileName.value = '';
+    
     const formData = new FormData();
     formData.append('file', selectedFile.value);
     formData.append('collection', selectedCollection.value);
@@ -250,7 +264,9 @@ async function importFile() {
     importResult.value = response.data;
     failedRows.value = response.data.failed || [];
     
-    // 🎯 Vérifier si c'est un échec total (que des erreurs)
+    logFileId.value = response.data.logFileId || null;
+    logFileName.value = response.data.logFileName || '';
+    
     const hasOnlyErrors = 
       (response.data.created || 0) === 0 && 
       (response.data.toVerify || 0) === 0 && 
@@ -258,48 +274,41 @@ async function importFile() {
       failedRows.value.length > 0;
     
     if (hasOnlyErrors) {
-      // Échec total : traiter comme une erreur
-      errorMessage.value = response.data.message || 'Toutes les lignes ont échoué.';
+      errorMessage.value = response.data.message || 'Toutes les lignes ont echoue.';
       successMessage.value = '';
     } else {
-      // Succès (avec ou sans erreurs partielles)
       successMessage.value = response.data.message || 'Import OK.';
       errorMessage.value = '';
     }
 
-    console.log('✅ Successful import', response);
+    console.log('Successful import', response);
   } catch (err) {
-    console.error('❌ Error when importing:', err);
+    console.error('Error when importing:', err);
     
-    // 🔍 Extraction détaillée de l'erreur
     let detailedError = 'An error has occurred during import.';
     
     if (err?.response?.data) {
       const errorData = err.response.data;
       
-      // Message principal
       if (errorData.message) {
         detailedError = errorData.message;
       }
       
-      // Si des erreurs de lignes spécifiques existent
       if (errorData.failed && Array.isArray(errorData.failed) && errorData.failed.length > 0) {
         failedRows.value = errorData.failed;
         
-        // Ajouter un résumé des erreurs au message
         const errorSummary = errorData.failed
-          .slice(0, 5) // Limiter à 5 premières erreurs pour l'affichage
+          .slice(0, 5)
           .map(f => `Ligne ${f.row}: ${f.error}`)
           .join('\n');
         
-        detailedError += `\n\nDétails des erreurs:\n${errorSummary}`;
+        detailedError += `\n\nDetails des erreurs:\n${errorSummary}`;
         
         if (errorData.failed.length > 5) {
           detailedError += `\n... et ${errorData.failed.length - 5} autre(s) erreur(s)`;
         }
       }
       
-      // Code d'erreur si disponible
       if (errorData.code) {
         detailedError += `\n\n[Code: ${errorData.code}]`;
       }
@@ -312,7 +321,6 @@ async function importFile() {
     failedRows.value = failedRows.value || [];
     importResult.value = null;
     
-    // 📊 Log structuré pour debug
     console.error('Error details:', {
       status: err?.response?.status,
       statusText: err?.response?.statusText,
@@ -324,7 +332,6 @@ async function importFile() {
   }
 }
 
-// 📁 Manage file upload
 function handleFileUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -345,22 +352,19 @@ function handleFileUpload(e) {
   reader.readAsArrayBuffer(file);
 }
 
-// 📋 Copy errors to clipboard
 function copyErrors() {
   const errorText = failedRows.value.map(row => {
-    return `Ligne ${row.row}${row.key ? ` (clé : ${row.key})` : ''} : ${row.error}`;
+    return `Ligne ${row.row}${row.key ? ` (cle : ${row.key})` : ''} : ${row.error}`;
   }).join('\n');
 
   navigator.clipboard.writeText(errorText).then(() => {
-    alert('Les erreurs ont été copiées dans le presse-papiers.');
+    alert('Les erreurs ont ete copiees dans le presse-papiers.');
   }).catch(() => {
     alert('Impossible de copier les erreurs dans le presse-papiers.');
   });
 }
 
-// 🎨 Calcul du type d'alerte
 const alertType = computed(() => {
-  // Prioriser l'erreur si présente
   if (errorMessage.value) return 'error';
   
   if (!importResult.value) return null;
@@ -370,19 +374,13 @@ const alertType = computed(() => {
     (importResult.value.created || 0) > 0 || 
     (importResult.value.toVerify || 0) > 0;
 
-  // Erreur pure : seulement des échecs
   if (hasFailed && !hasCreatedOrVerified) return 'error';
-  
-  // Warning : mélange succès + échecs
   if (hasFailed && hasCreatedOrVerified) return 'warning';
-  
-  // Succès : seulement des créations/vérifications
   if (hasCreatedOrVerified && !hasFailed) return 'success';
 
   return 'info';
 });
 
-// 🔁 Initialisation
 onMounted(async () => {
   await fetchProjectInfo();
   collections.value = availableCollections.value;
@@ -434,7 +432,6 @@ onMounted(async () => {
   border-radius: 4px;
 }
 
-/* Alertes */
 .alert {
   padding: 12px 46px;
   border-radius: 6px;
@@ -466,5 +463,28 @@ onMounted(async () => {
   background: var(--theme--info-background, #e3f2fd);
   color: var(--theme--info-foreground, #01579b);
   border: 1px solid var(--theme--info-border, #90caf9);
+}
+
+.log-file-link {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.log-link {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.log-link:hover {
+  background: rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
 }
 </style>

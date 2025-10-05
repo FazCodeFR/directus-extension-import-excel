@@ -47,6 +47,7 @@
 		"@directus/errors": "^2.0.2",
 		"@directus/sdk": "^20.0.1",
 		"multer": "^2.0.2",
+		"pino": "^9.7.0",
 		"vue-i18n": "^11.1.11",
 		"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
 	},
@@ -63,6 +64,6 @@
 		"url": "https://github.com/FazCodeFR/directus-extension-import-excel/issues"
 	},
 	"overrides": {
-	"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+		"xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
 	}
 }
