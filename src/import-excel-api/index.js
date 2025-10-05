@@ -89,11 +89,31 @@ export default function registerEndpoint(router, { services, getSchema, logger }
     const logFilePath = path.join(__dirname, "../../../uploads", logFileName);
     const logStream = fs.createWriteStream(logFilePath);
 
+    // Buffer pour les logs - on écrit en batch toutes les 100 lignes
+    let logBuffer = [];
+    const BATCH_SIZE = 100;
+    
+    const flushLogs = () => {
+      if (logBuffer.length > 0) {
+        logStream.write(logBuffer.join(''));
+        logBuffer = [];
+      }
+    };
+    
     // Fonction helper pour écrire dans le log (format texte lisible)
-    const log = (message) => {
+    const log = (message, forceFlush = false) => {
       const timestamp = new Date().toISOString();
-      logStream.write(`[${timestamp}] ${message}\n`);
-      logger.info(message);
+      logBuffer.push(`[${timestamp}] ${message}\n`);
+      
+      // Flush si buffer plein ou force
+      if (forceFlush || logBuffer.length >= BATCH_SIZE) {
+        flushLogs();
+      }
+      
+      // Logger Pino uniquement pour les messages importants
+      if (forceFlush || message.includes('ERREUR') || message.includes('DEBUT') || message.includes('TERMINE')) {
+        logger.info(message);
+      }
     };
 
     let createdCount = 0;
@@ -212,9 +232,9 @@ export default function registerEndpoint(router, { services, getSchema, logger }
         const item = items[i];
         const row = item.__rowIndex;
 
-        // Log de progression tous les 10 items
-        if ((i + 1) % 10 === 0) {
-          log(`Progression : ${i + 1}/${items.length} items traites`);
+        // Log de progression tous les 100 items au lieu de 10
+        if ((i + 1) % 100 === 0) {
+          log(`Progression : ${i + 1}/${items.length} items traites`, true);
         }
 
         try {
@@ -328,8 +348,11 @@ export default function registerEndpoint(router, { services, getSchema, logger }
       log(`Ignores : ${ignoredCount}`);
       log(`Erreurs : ${errors.length}`);
       log(`Taux de succes : ${(((createdCount + toVerifyCount) / items.length) * 100).toFixed(1)}%`);
-      log("================================================================================");
+      log("================================================================================", true);
 
+      // Flush final du buffer
+      flushLogs();
+      
       // Fermer le fichier de log et l'uploader dans Directus
       logStream.end();
 
@@ -403,7 +426,10 @@ export default function registerEndpoint(router, { services, getSchema, logger }
         log("Stack trace :");
         log(error.stack);
       }
-      log("================================================================================");
+      log("================================================================================", true);
+      
+      // Flush final du buffer en cas d'erreur
+      flushLogs();
       
       logStream.end();
       
